@@ -23,6 +23,8 @@ $files = @(
   'requirements.txt',
   'README.md',
   'run-monitor.cmd',
+  'stop-monitor.cmd',
+  'status-monitor.cmd',
   '.env.example',
   '.gitignore',
   'tail_events.py',
