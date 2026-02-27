@@ -23,6 +23,7 @@ STATE_PATH = os.path.join(os.path.dirname(__file__), 'state.json')
 EVENTS_LOG_PATH = os.path.join(os.path.dirname(__file__), 'events.jsonl')
 WHATSAPP_EVENTS_PATH = os.path.join(os.path.dirname(__file__), 'whatsapp-events.jsonl')
 LOCK_PATH = os.path.join(os.path.dirname(__file__), 'monitor.lock')
+PID_PATH = os.path.join(os.path.dirname(__file__), 'monitor.pid')
 
 @dataclass
 class Rule:
@@ -80,6 +81,13 @@ def acquire_single_instance_lock():
         fh.truncate(0)
         fh.write(str(os.getpid()))
         fh.flush()
+        # Write PID to a separate readable file (monitor.lock is byte-locked and unreadable
+        # by external tools like status-monitor.cmd).
+        try:
+            with open(PID_PATH, 'w', encoding='utf-8') as pf:
+                pf.write(str(os.getpid()))
+        except Exception:
+            pass
         return fh
     except Exception:
         # If locking isn't available for some reason, fail open (keep behavior).

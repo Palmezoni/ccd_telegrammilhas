@@ -6,6 +6,7 @@ __pycache__/
 session.session
 session.session-*
 monitor.lock
+monitor.pid
 
 # Local secrets
 .env
