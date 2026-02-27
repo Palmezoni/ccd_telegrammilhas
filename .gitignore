@@ -1,0 +1,18 @@
+.venv/
+__pycache__/
+*.pyc
+
+# Telethon session & runtime artifacts
+session.session
+session.session-*
+monitor.lock
+
+# Local secrets
+.env
+
+# Runtime state/logs
+state.json
+events.jsonl
+whatsapp-events.jsonl
+whatsapp-relay-state.json
+logs/
