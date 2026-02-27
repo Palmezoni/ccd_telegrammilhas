@@ -338,12 +338,10 @@ async def main():
     api_id = int(api_id)
 
     dry_env = os.getenv('DRY_RUN', '1').strip() == '1'
-    dry_run = True
-    if args.send and not args.dry_run:
+    dry_run = dry_env          # use .env value as base; default=True (safe)
+    if args.send:              # --send CLI flag forces live
         dry_run = False
-    if args.dry_run:
-        dry_run = True
-    if dry_env and not args.send:
+    if args.dry_run:           # --dry-run CLI flag forces dry
         dry_run = True
 
     rules = {
