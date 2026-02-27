@@ -239,7 +239,31 @@ def send_whatsapp_callmebot(phone: str, apikey: str, message: str):
         )
         urllib.request.urlopen(url, timeout=10)
     except Exception as e:
-        print(f"[WARN] WhatsApp notify failed: {e}")
+        print(f"[WARN] WhatsApp CallMeBot notify failed: {e}")
+
+def send_ntfy(topic: str, message: str, title: str = 'Monitor Milhas'):
+    """Send a push notification via ntfy.sh (free, no account required).
+
+    Setup:
+    1. Install the 'ntfy' app on Android/iOS (https://ntfy.sh)
+    2. Subscribe to your chosen topic (e.g. 'milhas-fabricio-5034')
+    3. Set NTFY_TOPIC=milhas-fabricio-5034 in .env
+    """
+    import urllib.request
+    try:
+        req = urllib.request.Request(
+            f"https://ntfy.sh/{topic}",
+            data=message.encode('utf-8'),
+            headers={
+                'Title': title,
+                'Priority': 'high',
+                'Tags': 'money,airplane',
+            },
+            method='POST',
+        )
+        urllib.request.urlopen(req, timeout=10)
+    except Exception as e:
+        print(f"[WARN] ntfy notify failed: {e}")
 
 async def ensure_login(client: TelegramClient, phone: str):
     if await client.is_user_authorized():
@@ -569,6 +593,16 @@ async def main():
             threading.Thread(
                 target=send_whatsapp_callmebot,
                 args=(wa_phone, wa_apikey, summary),
+                daemon=True
+            ).start()
+
+        # Optional: push notification via ntfy.sh (free, Android/iOS)
+        ntfy_topic = (os.getenv('NTFY_TOPIC') or '').strip()
+        if ntfy_topic:
+            import threading
+            threading.Thread(
+                target=send_ntfy,
+                args=(ntfy_topic, summary),
                 daemon=True
             ).start()
 
