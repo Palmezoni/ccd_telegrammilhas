@@ -30,3 +30,5 @@ if %errorlevel%==0 (
 ) else (
     echo [ERRO] Nao foi possivel parar PID %PID%.
 )
+
+pause
