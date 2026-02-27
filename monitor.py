@@ -222,6 +222,25 @@ def is_buy_message(text: str):
 def compute_per_cpf(miles: int, cpfs: int) -> int:
     return int(miles // cpfs)
 
+def send_whatsapp_callmebot(phone: str, apikey: str, message: str):
+    """Send a WhatsApp message via CallMeBot free API (best-effort, non-blocking).
+
+    Setup: save +34 644 43 79 49 on WhatsApp and send 'I allow callmebot to send me messages'.
+    They reply with your API key. Then set WHATSAPP_NOTIFY_PHONE and WHATSAPP_CALLMEBOT_APIKEY.
+    """
+    import urllib.request
+    import urllib.parse
+    try:
+        url = (
+            "https://api.callmebot.com/whatsapp.php"
+            f"?phone={urllib.parse.quote(phone)}"
+            f"&text={urllib.parse.quote(message)}"
+            f"&apikey={urllib.parse.quote(apikey)}"
+        )
+        urllib.request.urlopen(url, timeout=10)
+    except Exception as e:
+        print(f"[WARN] WhatsApp notify failed: {e}")
+
 async def ensure_login(client: TelegramClient, phone: str):
     if await client.is_user_authorized():
         return
@@ -527,18 +546,31 @@ async def main():
                 'sent_via': sent_via,
             })
 
+        # Build shared summary text (used by both Telegram and WhatsApp notify)
+        summary = (
+            f"[AUTO] {program} | {miles}/{cpfs} = {per_cpf}/CPF | offer="
+            f"{format_price_cents(offer_cents) if offer_cents is not None else '??'} | "
+            f"reply {msg} via {sent_via} | group: {chat_title or chat_id} | from: {sender_name or '??'}"
+        )
+
         # Optional: notify to Saved Messages / another chat via Telegram
         notify_target = (os.getenv('TG_NOTIFY_TARGET') or '').strip()
         if notify_target:
-            summary = (
-                f"[AUTO] {program} | {miles}/{cpfs} = {per_cpf}/CPF | offer="
-                f"{format_price_cents(offer_cents) if offer_cents is not None else '??'} | "
-                f"reply {msg} via {sent_via} | group: {chat_title or chat_id} | from: {sender_name or '??'}"
-            )
             try:
                 await client.send_message(notify_target, summary)
             except Exception as e:
                 append_event_log({'ts': int(time.time()), 'kind': 'notify_error', 'error': str(e)})
+
+        # Optional: notify via WhatsApp (CallMeBot free API)
+        wa_phone  = (os.getenv('WHATSAPP_NOTIFY_PHONE') or '').strip()
+        wa_apikey = (os.getenv('WHATSAPP_CALLMEBOT_APIKEY') or '').strip()
+        if wa_phone and wa_apikey:
+            import threading
+            threading.Thread(
+                target=send_whatsapp_callmebot,
+                args=(wa_phone, wa_apikey, summary),
+                daemon=True
+            ).start()
 
     print('Listening... (Ctrl+C to stop)')
     await client.run_until_disconnected()
