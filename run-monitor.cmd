@@ -32,7 +32,7 @@ if exist "%PID_FILE%" (
 
 rem ── Inicia o monitor em background ────────────────────────────────────────
 echo [1/3] Iniciando monitor em background ^(pythonw - sem janela^)...
-"%~dp0.venv\Scripts\pythonw.exe" -u "%~dp0monitor.py"
+start "" /b "%~dp0.venv\Scripts\pythonw.exe" -u "%~dp0monitor.py"
 
 rem ── Aguarda o processo escrever o PID ─────────────────────────────────────
 echo [2/3] Aguardando confirmacao de inicio...
