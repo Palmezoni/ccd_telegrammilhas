@@ -43,9 +43,9 @@ Name: "startup";     Description: "Iniciar automaticamente com o Windows"; Group
 
 [Files]
 ; Todos os arquivos da build (MilhasUP.exe + dependências + monitor_bg.exe)
-Source: "..\dist\MilhasUP\MilhasUP\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\dist\MilhasUP\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; Template de configuração (se o usuário ainda não tiver .env)
-Source: "..\dist\MilhasUP\MilhasUP\.env.example"; DestDir: "{app}"; DestName: ".env.example"; Flags: ignoreversion
+Source: "..\dist\MilhasUP\.env.example"; DestDir: "{app}"; DestName: ".env.example"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#AppName}";            Filename: "{app}\{#AppExeName}"; IconFilename: "{app}\{#AppExeName}"

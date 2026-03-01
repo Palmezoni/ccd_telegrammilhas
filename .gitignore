@@ -17,3 +17,7 @@ events.jsonl
 whatsapp-events.jsonl
 whatsapp-relay-state.json
 logs/
+
+# Build artifacts
+dist/
+build/_work/
