@@ -19,11 +19,16 @@ from telethon import TelegramClient, events
 from telethon.errors import SessionPasswordNeededError
 from dotenv import load_dotenv
 
-STATE_PATH = os.path.join(os.path.dirname(__file__), 'state.json')
-EVENTS_LOG_PATH = os.path.join(os.path.dirname(__file__), 'events.jsonl')
-WHATSAPP_EVENTS_PATH = os.path.join(os.path.dirname(__file__), 'whatsapp-events.jsonl')
-LOCK_PATH = os.path.join(os.path.dirname(__file__), 'monitor.lock')
-PID_PATH = os.path.join(os.path.dirname(__file__), 'monitor.pid')
+# ── Base directory: pasta do .exe quando frozen, pasta do script em dev ───────
+# PyInstaller --onefile extrai para _MEIPASS (temp); sys.executable aponta para o .exe real.
+_IS_FROZEN = getattr(sys, 'frozen', False)
+_BASE = os.path.dirname(sys.executable) if _IS_FROZEN else os.path.dirname(os.path.abspath(__file__))
+
+STATE_PATH            = os.path.join(_BASE, 'state.json')
+EVENTS_LOG_PATH       = os.path.join(_BASE, 'events.jsonl')
+WHATSAPP_EVENTS_PATH  = os.path.join(_BASE, 'whatsapp-events.jsonl')
+LOCK_PATH             = os.path.join(_BASE, 'monitor.lock')
+PID_PATH              = os.path.join(_BASE, 'monitor.pid')
 
 @dataclass
 class Rule:
@@ -268,6 +273,14 @@ def send_ntfy(topic: str, message: str, title: str = 'Monitor Milhas'):
 async def ensure_login(client: TelegramClient, phone: str):
     if await client.is_user_authorized():
         return
+    # Sem console (execução headless/frozen) não há como pedir o código interativamente.
+    # Neste caso a session.session precisa já estar autenticada na pasta do executável.
+    if _IS_FROZEN or not sys.stdin or not sys.stdin.isatty():
+        raise RuntimeError(
+            "Sessão Telegram não autenticada.\n"
+            "Execute o monitor uma vez pelo console (python monitor.py) para fazer login,\n"
+            "depois copie o arquivo session.session para a pasta de instalação."
+        )
     await client.send_code_request(phone)
     code = input('Telegram code (SMS/app): ').strip()
     try:
@@ -313,7 +326,7 @@ async def resolve_target(client: TelegramClient, target: str):
     raise ValueError(f'Cannot find any entity corresponding to "{target}". Set TG_TARGET to the exact title or numeric id.')
 
 async def main():
-    load_dotenv()
+    load_dotenv(dotenv_path=os.path.join(_BASE, '.env'), override=True)
 
     lock_handle = acquire_single_instance_lock()
     if lock_handle is None:
@@ -355,7 +368,7 @@ async def main():
     state = load_state()
     seen = state.setdefault('seen', {})
 
-    client = TelegramClient('session', api_id, api_hash)
+    client = TelegramClient(os.path.join(_BASE, 'session'), api_id, api_hash)
     await client.connect()
     await ensure_login(client, phone)
 
