@@ -1,0 +1,7 @@
+# Dependências da Interface Gráfica — Milhas UP Telegram Monitor
+customtkinter>=5.2.0
+pystray>=0.19.0
+pillow>=10.0.0
+
+# Build (empacotamento para .exe)
+pyinstaller>=6.0.0
