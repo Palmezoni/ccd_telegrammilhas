@@ -20,9 +20,18 @@ from telethon.errors import SessionPasswordNeededError
 from dotenv import load_dotenv
 
 # ── Base directory: pasta do .exe quando frozen, pasta do script em dev ───────
-# PyInstaller --onefile extrai para _MEIPASS (temp); sys.executable aponta para o .exe real.
+# PyInstaller --onedir coloca o exe em monitor_bg/monitor_bg.exe.
+# Os arquivos de dados (.env, session, logs) ficam na pasta pai (instalação).
+# Se estiver dentro de uma subpasta chamada 'monitor_bg', sobe um nível.
 _IS_FROZEN = getattr(sys, 'frozen', False)
-_BASE = os.path.dirname(sys.executable) if _IS_FROZEN else os.path.dirname(os.path.abspath(__file__))
+if _IS_FROZEN:
+    _exe_dir = os.path.dirname(sys.executable)
+    if os.path.basename(_exe_dir).lower() == 'monitor_bg':
+        _BASE = os.path.dirname(_exe_dir)   # sobe para a pasta de instalação
+    else:
+        _BASE = _exe_dir
+else:
+    _BASE = os.path.dirname(os.path.abspath(__file__))
 
 STATE_PATH            = os.path.join(_BASE, 'state.json')
 EVENTS_LOG_PATH       = os.path.join(_BASE, 'events.jsonl')

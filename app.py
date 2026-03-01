@@ -136,7 +136,7 @@ def do_start():
         )
     except Exception as e:
         return False, str(e)
-    for _ in range(10):
+    for _ in range(30):   # até 15s — Telethon precisa conectar ao Telegram
         time.sleep(0.5)
         if get_pid():
             return True, f"Monitor iniciado! (PID {get_pid()})"

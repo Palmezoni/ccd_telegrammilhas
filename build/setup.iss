@@ -17,7 +17,7 @@ AppVersion={#AppVersion}
 AppPublisher={#AppPublisher}
 AppPublisherURL={#AppURL}
 AppSupportURL={#AppURL}
-DefaultDirName={autopf}\{#AppName}
+DefaultDirName={localappdata}\{#AppName}
 DefaultGroupName={#AppName}
 AllowNoIcons=yes
 OutputDir=..\dist\installer
@@ -29,6 +29,7 @@ WizardStyle=modern
 PrivilegesRequired=lowest
 ArchitecturesInstallIn64BitMode=x64compatible
 DisableProgramGroupPage=yes
+UsePreviousAppDir=yes
 UninstallDisplayIcon={app}\{#AppExeName}
 VersionInfoVersion={#AppVersion}
 VersionInfoDescription={#AppName}
@@ -80,6 +81,6 @@ begin
     EnvDest    := ExpandConstant('{app}\.env');
     ExampleSrc := ExpandConstant('{app}\.env.example');
     if not FileExists(EnvDest) and FileExists(ExampleSrc) then
-      FileCopy(ExampleSrc, EnvDest, False);
+      CopyFile(ExampleSrc, EnvDest, False);
   end;
 end;
