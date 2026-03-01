@@ -37,10 +37,10 @@ PID_PATH    = BASE_DIR / "monitor.pid"
 LOCK_PATH   = BASE_DIR / "monitor.lock"
 EVENTS_PATH = BASE_DIR / "events.jsonl"
 
-# Produção: monitor_bg.exe gerado pelo PyInstaller
+# Produção: monitor_bg/monitor_bg.exe (--onedir, sem flash de CMD)
 # Dev: pythonw do venv + monitor.py
 if IS_FROZEN:
-    MONITOR_CMD = [str(BASE_DIR / "monitor_bg.exe")]
+    MONITOR_CMD = [str(BASE_DIR / "monitor_bg" / "monitor_bg.exe")]
 else:
     _pythonw = BASE_DIR / ".venv" / "Scripts" / "pythonw.exe"
     MONITOR_CMD = [str(_pythonw), str(BASE_DIR / "monitor.py")]
