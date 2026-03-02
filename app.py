@@ -567,7 +567,7 @@ class MilhasUpApp(ctk.CTk):
             if "sender"      in e:      parts.append(f"| de: {e['sender'][:25]}")
             if "chat_title"  in e:      parts.append(f"| {e['chat_title'][:30]}")
             if "reason"      in e:      parts.append(f"  {e['reason']}")
-            if "error"       in e:      parts.append(f"  ERRO: {e['error'][:50]}")
+            if e.get("error"):           parts.append(f"  ERRO: {str(e['error'])[:50]}")
 
             self._logbox.insert("end", "  ".join(parts) + "\n")
 
