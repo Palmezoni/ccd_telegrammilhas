@@ -19,7 +19,7 @@ from typing import Optional, Tuple
 # ── Configuração (embutida no executável via PyInstaller) ─────────────────────
 
 LICENSE_API_URL   = os.getenv("LICENSE_API_URL",
-                              "https://milhasup-licensing.up.railway.app")
+                              "https://milhasup-licensing-production.up.railway.app")
 SHARED_API_SECRET = "mup-api-87d8deb37f1b06530dffc2b8a35ea32359eb9c54"
 FERNET_SALT       = "mup-14bbd40144e11d2bb72f20b69b59f4122927e832"
 LICENSE_DAT_NAME  = "license.dat"
