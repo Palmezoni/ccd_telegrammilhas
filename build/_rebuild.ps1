@@ -13,33 +13,23 @@ Get-Process MilhasUP, monitor_bg -ErrorAction SilentlyContinue | Stop-Process -F
 Start-Sleep -Seconds 2
 Write-Host "    OK"
 
-# ── 2. Build MilhasUP.exe (GUI — primeiro) ────────────────────────────────────
+# ── 2. Build MilhasUP.exe via spec (contém hidden imports de licenciamento) ──
 Write-Host "`n[1/2] Compilando MilhasUP.exe (GUI)..."
 & $pyinstaller `
-    --onedir --noconsole -y `
-    --name MilhasUP `
-    --icon "$assets\icon.ico" `
     --distpath "$dist" `
     --workpath "$base\build\_work\app" `
-    --specpath "$base\build" `
-    --add-data "${assets};assets" `
-    --collect-all customtkinter `
-    --hidden-import "pystray._win32" `
-    --hidden-import "PIL._tkinter_finder" `
-    "$base\app.py"
+    -y `
+    "$base\build\MilhasUP.spec"
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller falhou para MilhasUP" }
 Write-Host "    OK"
 
-# ── 3. Build monitor_bg.exe (--onedir) ─────────────────────────────────────
+# ── 3. Build monitor_bg.exe via spec (contém hidden imports de licenciamento) ─
 Write-Host "`n[2/2] Compilando monitor_bg.exe (background)..."
 & $pyinstaller `
-    --onedir --noconsole `
-    --name monitor_bg `
-    --icon "$assets\icon.ico" `
     --distpath "$dist\MilhasUP" `
     --workpath "$base\build\_work\monitor" `
-    --specpath "$base\build" `
-    "$base\monitor.py"
+    -y `
+    "$base\build\monitor_bg.spec"
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller falhou para monitor_bg" }
 Write-Host "    OK"
 

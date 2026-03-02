@@ -1,10 +1,27 @@
 # -*- mode: python ; coding: utf-8 -*-
-from PyInstaller.utils.hooks import collect_all
+from PyInstaller.utils.hooks import collect_all, collect_submodules
 
 datas = [('C:\\Users\\palme\\ccd\\ccd_telegrammilhas\\assets', 'assets')]
 binaries = []
-hiddenimports = ['pystray._win32', 'PIL._tkinter_finder']
+hiddenimports = [
+    'pystray._win32', 'PIL._tkinter_finder',
+    # Licenciamento
+    'license',
+    'wmi', 'win32api', 'win32con', 'win32security', 'pywintypes',
+    'cryptography', 'cryptography.fernet',
+    'cryptography.hazmat.primitives.kdf.hkdf',
+    'cryptography.hazmat.primitives.hashes',
+    'cryptography.hazmat.backends',
+    'cryptography.hazmat.backends.openssl',
+    'httpx', 'httpcore', 'anyio', 'anyio.streams.memory',
+    'anyio.streams.tls', 'anyio._backends._asyncio',
+    'certifi', 'idna', 'h11',
+]
 tmp_ret = collect_all('customtkinter')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+tmp_ret = collect_all('cryptography')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+tmp_ret = collect_all('httpx')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
 
