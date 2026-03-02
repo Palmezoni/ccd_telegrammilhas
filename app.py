@@ -615,7 +615,8 @@ class MilhasUpApp(ctk.CTk):
             prog = e.get("program", "")
             ts   = datetime.fromtimestamp(e.get("ts", 0)).strftime("%d/%m %H:%M")
 
-            if kind == "sent":
+            if kind == "send_result" and not e.get("error"):
+                # Envio confirmado com sucesso
                 total += 1
                 if prog == "SMILES":  smiles += 1
                 elif prog == "LATAM": latam  += 1
@@ -631,6 +632,9 @@ class MilhasUpApp(ctk.CTk):
                     f"  = {per:>6,}/CPF  → R${reply:<5}"
                     f"  {sender:<24}  {chat}\n"
                 )
+            elif kind == "send_result" and e.get("error"):
+                # Envio tentado mas com erro
+                line = f"{ts}  ❌ {prog:<6}  ERRO ao enviar: {str(e.get('error',''))[:70]}\n"
             elif kind == "eligible" and e.get("dry_run"):
                 line = (
                     f"{ts}  🔍 {prog:<6}  {e.get('miles',0):>7,}mi"
