@@ -105,16 +105,18 @@ def get_pid():
         return None
 
 
+_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
 def is_running():
     pid = get_pid()
     if pid is None:
         return False, None
     try:
-        out = subprocess.run(
-            ["tasklist", "/FI", f"PID eq {pid}"],
-            capture_output=True, text=True,
-        ).stdout
-        return str(pid) in out, pid
+        # os.kill(pid, 0) verifica se o processo existe sem spawnar subprocess
+        os.kill(pid, 0)
+        return True, pid
+    except OSError:
+        return False, None
     except Exception:
         return False, None
 
@@ -148,7 +150,8 @@ def do_stop():
     if not running:
         return False, "Monitor não está rodando"
     try:
-        subprocess.run(["taskkill", "/PID", str(pid), "/F"], capture_output=True)
+        subprocess.run(["taskkill", "/PID", str(pid), "/F"], capture_output=True,
+                       creationflags=_NO_WINDOW)
         time.sleep(0.8)
         PID_PATH.unlink(missing_ok=True)
         LOCK_PATH.unlink(missing_ok=True)
