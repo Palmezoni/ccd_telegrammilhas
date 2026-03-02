@@ -6,6 +6,7 @@ import hashlib
 import argparse
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 from decimal import Decimal, InvalidOperation
 
 # Force UTF-8 output on Windows consoles to avoid crashes on emojis/special chars in names.
@@ -337,6 +338,27 @@ async def resolve_target(client: TelegramClient, target: str):
 async def main():
     load_dotenv(dotenv_path=os.path.join(_BASE, '.env'), override=True)
 
+    # ── Verificação de Licença ──────────────────────────────────────────────
+    try:
+        from license import LicenseManager  # type: ignore
+        _lic_mgr = LicenseManager(Path(_BASE))
+        _lic_ok, _lic_reason = _lic_mgr.check_or_grace()
+        if not _lic_ok:
+            _msgs = {
+                'not_activated':  'Licença não ativada. Abra o MilhasUP.exe para ativar.',
+                'expired_local':  'Licença expirada. Renove no suporte.',
+                'revoked':        'Licença revogada. Contate o suporte.',
+                'grace_expired':  'Sem conexão com servidor de licença por mais de 24h.',
+            }
+            print(f'[LICENSE] BLOQUEADO — {_msgs.get(_lic_reason, _lic_reason)}', flush=True)
+            append_event_log({'ts': int(time.time()), 'kind': 'license_block',
+                              'reason': _lic_reason})
+            sys.exit(2)
+        print(f'[LICENSE] OK ({_lic_reason})', flush=True)
+    except ImportError:
+        _lic_mgr = None   # license.py não presente — modo dev sem licença
+    # ─────────────────────────────────────────────────────────────────────────
+
     lock_handle = acquire_single_instance_lock()
     if lock_handle is None:
         print('[INFO] Another monitor instance is already running. Exiting.')
@@ -373,6 +395,7 @@ async def main():
 
     send_delay_seconds = float(os.getenv('SEND_DELAY_SECONDS', '2').strip() or '2')
     whatsapp_relay_enabled = os.getenv('WHATSAPP_RELAY', '1').strip() == '1'
+    aceita_liminar = os.getenv('ACEITA_LIMINAR', '1').strip() == '1'
 
     state = load_state()
     seen = state.setdefault('seen', {})
@@ -448,6 +471,16 @@ async def main():
             eligible = per_cpf > rule.threshold_per_cpf
 
         if not eligible:
+            return
+
+        # Filtra ofertas com palavra "liminar" se configurado para não aceitar
+        if not aceita_liminar and 'liminar' in text.lower():
+            append_event_log({
+                'ts': int(time.time()), 'kind': 'skipped', 'program': program,
+                'reason': 'liminar (não aceito)',
+                'chat_id': getattr(event, 'chat_id', None),
+                'miles': miles, 'cpfs': cpfs,
+            })
             return
 
         # Dedupe per-chat: the same proposal can appear in multiple groups and we want to reply in each one.
@@ -639,6 +672,30 @@ async def main():
                 args=(ntfy_topic, summary),
                 daemon=True
             ).start()
+
+    # ── Watchdog de licença (verifica a cada 6h) ───────────────────────────
+    import asyncio as _asyncio
+
+    async def _license_watchdog():
+        """Verifica licença a cada 6h e encerra o monitor se inválida."""
+        if _lic_mgr is None:
+            return   # dev mode sem license.py
+        CHECK_INTERVAL = 6 * 3600
+        while True:
+            await _asyncio.sleep(CHECK_INTERVAL)
+            try:
+                ok, reason = _lic_mgr.check_or_grace()
+            except Exception:
+                ok, reason = True, 'check_error'
+            if not ok:
+                print(f'[LICENSE] Watchdog: bloqueado ({reason}). Encerrando.', flush=True)
+                append_event_log({'ts': int(time.time()), 'kind': 'license_block',
+                                  'reason': reason})
+                await client.disconnect()
+                break
+
+    _asyncio.get_event_loop().create_task(_license_watchdog())
+    # ─────────────────────────────────────────────────────────────────────────
 
     _log('LISTENING — run_until_disconnected()')
     print('Listening... (Ctrl+C to stop)')

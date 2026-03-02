@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block content %}
+
+<!-- Stats -->
+<div class="row g-3 mb-4">
+  {% for key, val, color in [
+      ('total', stats.total, 'primary'),
+      ('active', stats.active, 'success'),
+      ('pending', stats.pending, 'warning'),
+      ('expired', stats.expired, 'secondary'),
+      ('revoked', stats.revoked, 'danger')
+  ] %}
+  <div class="col-6 col-sm-4 col-md-2">
+    <div class="card stat-card">
+      <div class="number text-{{ color }}">{{ val }}</div>
+      <div class="text-muted small">{{ key|capitalize }}</div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Filtros -->
+<form method="get" class="row g-2 mb-3 align-items-end">
+  <div class="col-auto flex-grow-1">
+    <input type="text" name="search" class="form-control" placeholder="Buscar nome, email ou chave..."
+           value="{{ search }}">
+  </div>
+  <div class="col-auto">
+    <select name="status" class="form-select">
+      <option value="" {% if not status_filter %}selected{% endif %}>Todos os status</option>
+      <option value="active"  {% if status_filter=='active'  %}selected{% endif %}>Ativas</option>
+      <option value="pending" {% if status_filter=='pending' %}selected{% endif %}>Pendentes</option>
+      <option value="expired" {% if status_filter=='expired' %}selected{% endif %}>Expiradas</option>
+      <option value="revoked" {% if status_filter=='revoked' %}selected{% endif %}>Revogadas</option>
+    </select>
+  </div>
+  <div class="col-auto">
+    <button type="submit" class="btn btn-primary">Buscar</button>
+    <a href="/admin/" class="btn btn-outline-secondary">Limpar</a>
+  </div>
+</form>
+
+<!-- Tabela -->
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th>Chave</th>
+          <th>Cliente</th>
+          <th>Email</th>
+          <th>Plano</th>
+          <th>Expira</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for lic in licenses %}
+        <tr style="cursor:pointer" onclick="location='/admin/{{ lic.id }}'">
+          <td><code>{{ lic.key }}</code></td>
+          <td>{{ lic.customer_name }}</td>
+          <td>{{ lic.customer_email }}</td>
+          <td>{{ lic.plan }}</td>
+          <td>{{ lic.expires_at | fmtdt }} {{ lic.expires_at | days_remaining | safe }}</td>
+          <td>{{ lic.status | status_badge | safe }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-center text-muted py-4">Nenhuma licença encontrada.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card-footer d-flex justify-content-between align-items-center">
+    <small class="text-muted">{{ total }} licença(s)</small>
+    <div>
+      {% if page > 1 %}<a href="?search={{ search }}&status={{ status_filter }}&page={{ page-1 }}" class="btn btn-sm btn-outline-secondary me-1">‹ Ant</a>{% endif %}
+      <span class="text-muted small">{{ page }} / {{ pages }}</span>
+      {% if page < pages %}<a href="?search={{ search }}&status={{ status_filter }}&page={{ page+1 }}" class="btn btn-sm btn-outline-secondary ms-1">Próx ›</a>{% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

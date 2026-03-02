@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row g-4">
+
+  <!-- Info + Ações -->
+  <div class="col-md-5">
+    <div class="card p-4 mb-3">
+      <h5 class="mb-3">Licença <code>{{ lic.key }}</code></h5>
+      {% if msg %}<div class="alert alert-success py-2">{{ msg }}</div>{% endif %}
+
+      <table class="table table-sm">
+        <tr><th>Cliente</th><td>{{ lic.customer_name }}</td></tr>
+        <tr><th>Email</th><td>{{ lic.customer_email }}</td></tr>
+        <tr><th>Plano</th><td>{{ lic.plan }}</td></tr>
+        <tr><th>Status</th><td>{{ lic.status | status_badge | safe }}</td></tr>
+        <tr><th>Criada</th><td>{{ lic.created_at | fmtdt }}</td></tr>
+        <tr><th>Ativada</th><td>{{ lic.activated_at | fmtdt }}</td></tr>
+        <tr><th>Expira</th><td>{{ lic.expires_at | fmtdt }} {{ lic.expires_at | days_remaining | safe }}</td></tr>
+      </table>
+
+      {% if lic.hw_fingerprint %}
+      <div class="mt-2 p-2 rounded" style="background:#0d1117">
+        <small class="text-muted">Hardware vinculado</small><br>
+        <small>{{ lic.hw_label or '—' }}</small><br>
+        <small class="text-muted">{{ lic.hw_fingerprint[:32] }}...</small><br>
+        <small class="text-muted">Vinculado: {{ lic.hw_bound_at | fmtdt }}</small>
+      </div>
+      {% else %}
+      <div class="text-muted small mt-2">Nenhum hardware vinculado ainda.</div>
+      {% endif %}
+    </div>
+
+    <!-- Ações -->
+    <div class="card p-3">
+      <h6 class="mb-3">Ações</h6>
+      <form method="post" action="/admin/{{ lic.id }}/extend" class="d-flex gap-2 mb-2">
+        <button name="days" value="30" class="btn btn-sm btn-outline-success flex-grow-1">+30 dias</button>
+        <button name="days" value="90" class="btn btn-sm btn-outline-success flex-grow-1">+90 dias</button>
+        <button name="days" value="365" class="btn btn-sm btn-outline-success flex-grow-1">+1 ano</button>
+      </form>
+      <form method="post" action="/admin/{{ lic.id }}/unbind" class="mb-2">
+        <button class="btn btn-sm btn-outline-warning w-100"
+                onclick="return confirm('Desvincular hardware?')">Desvincular Hardware</button>
+      </form>
+      {% if lic.status != 'revoked' %}
+      <form method="post" action="/admin/{{ lic.id }}/revoke">
+        <button class="btn btn-sm btn-outline-danger w-100"
+                onclick="return confirm('Revogar esta licença permanentemente?')">Revogar Licença</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Notas + Histórico -->
+  <div class="col-md-7">
+    <div class="card p-3 mb-3">
+      <h6>Observações</h6>
+      <form method="post" action="/admin/{{ lic.id }}/notes">
+        <textarea name="notes" class="form-control mb-2" rows="3">{{ lic.notes or '' }}</textarea>
+        <button class="btn btn-sm btn-primary">Salvar Notas</button>
+      </form>
+    </div>
+    <div class="card p-3">
+      <h6 class="mb-3">Histórico de Verificações</h6>
+      <div class="table-responsive" style="max-height:400px;overflow-y:auto">
+        <table class="table table-sm">
+          <thead><tr><th>Data/Hora</th><th>Ação</th><th>IP</th><th>Resultado</th></tr></thead>
+          <tbody>
+            {% for c in checks %}
+            <tr>
+              <td><small>{{ c.checked_at | fmtdt }}</small></td>
+              <td><small>{{ c.action }}</small></td>
+              <td><small>{{ c.ip_address or '—' }}</small></td>
+              <td>
+                {% if c.result == 'ok' %}<span class="badge bg-success">ok</span>
+                {% elif c.result == 'expired' %}<span class="badge bg-secondary">expirada</span>
+                {% elif c.result == 'revoked' %}<span class="badge bg-danger">revogada</span>
+                {% elif c.result == 'hw_mismatch' %}<span class="badge bg-warning">hw errado</span>
+                {% else %}<span class="badge bg-secondary">{{ c.result }}</span>{% endif %}
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="text-center text-muted">Sem histórico.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="mt-3">
+  <a href="/admin/" class="btn btn-outline-secondary">‹ Voltar</a>
+</div>
+{% endblock %}

@@ -18,6 +18,13 @@ from tkinter import messagebox
 
 import customtkinter as ctk
 
+# ── Licença ────────────────────────────────────────────────────────────────────
+try:
+    from license import LicenseManager, LicenseState
+    HAS_LICENSE = True
+except ImportError:
+    HAS_LICENSE = False
+
 # ── System tray (opcional — instale pystray e pillow) ────────────────────────
 try:
     import pystray
@@ -199,6 +206,26 @@ class MilhasUpApp(ctk.CTk):
         self.geometry("920x680")
         self.minsize(780, 580)
         self._setup_icon()
+
+        # ── Gate de licença ───────────────────────────────────────────────────
+        if HAS_LICENSE:
+            self._lic = LicenseManager(BASE_DIR)
+            state = self._lic.load_local()
+            if state is None or not state.activated:
+                self._build_activation_screen()
+                return
+            ok, reason = self._lic.check_or_grace()
+            if not ok:
+                msg = {
+                    "expired_local": "Licença expirada. Por favor renove sua assinatura.",
+                    "revoked":       "Licença revogada. Contate o suporte.",
+                    "grace_expired": "Sem conexão com o servidor de licença por mais de 24h. Renove ou verifique a internet.",
+                }.get(reason, f"Licença inválida ({reason}). Contate o suporte.")
+                self._build_activation_screen(msg=msg)
+                return
+        else:
+            self._lic = None
+
         self._build_ui()
         self._setup_tray()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -228,6 +255,112 @@ class MilhasUpApp(ctk.CTk):
         d.polygon(pts, fill="white")
         return img
 
+    # ── Tela de Ativação ──────────────────────────────────────────────────────
+
+    def _build_activation_screen(self, msg: str = ""):
+        """Exibe a tela de ativação de licença bloqueando o restante da UI."""
+        self.protocol("WM_DELETE_WINDOW", self._quit)
+
+        # Header igual ao normal
+        hdr = ctk.CTkFrame(self, height=54, corner_radius=0, fg_color=C_DARK)
+        hdr.pack(fill="x")
+        hdr.pack_propagate(False)
+        ctk.CTkLabel(
+            hdr,
+            text="✈  Milhas UP Telegram Monitor",
+            font=ctk.CTkFont(size=17, weight="bold"),
+            text_color="#58a6ff",
+        ).pack(side="left", padx=20)
+
+        # Card central
+        outer = ctk.CTkFrame(self, fg_color="transparent")
+        outer.pack(fill="both", expand=True)
+
+        card = ctk.CTkFrame(outer, corner_radius=16, width=480)
+        card.place(relx=0.5, rely=0.5, anchor="center")
+        card.pack_propagate(False)
+        card.configure(height=380)
+
+        ctk.CTkLabel(
+            card, text="🔑  Ativação de Licença",
+            font=ctk.CTkFont(size=18, weight="bold"),
+        ).pack(pady=(28, 4))
+
+        if msg:
+            ctk.CTkLabel(
+                card, text=msg,
+                font=ctk.CTkFont(size=12), text_color=C_RED,
+                wraplength=400,
+            ).pack(padx=20, pady=(0, 8))
+        else:
+            ctk.CTkLabel(
+                card, text="Informe sua chave para usar o software.",
+                font=ctk.CTkFont(size=12), text_color=C_GRAY,
+            ).pack(pady=(0, 8))
+
+        ctk.CTkLabel(
+            card, text="Chave de Licença:",
+            font=ctk.CTkFont(size=12), anchor="w",
+        ).pack(fill="x", padx=40)
+
+        key_var = ctk.StringVar()
+        key_entry = ctk.CTkEntry(
+            card, textvariable=key_var,
+            placeholder_text="MILH-XXXX-XXXX-XXXX",
+            width=400, height=40,
+            font=ctk.CTkFont(size=14, family="Consolas"),
+        )
+        key_entry.pack(padx=40, pady=(4, 16))
+        key_entry.focus()
+
+        msg_lbl = ctk.CTkLabel(card, text="", font=ctk.CTkFont(size=12), wraplength=400)
+        msg_lbl.pack(padx=20, pady=(0, 4))
+
+        btn = ctk.CTkButton(
+            card, text="Ativar Software", width=200, height=42,
+            font=ctk.CTkFont(size=14, weight="bold"),
+            fg_color="#27ae60", hover_color="#2ecc71",
+        )
+        btn.pack(pady=(0, 8))
+
+        ctk.CTkLabel(
+            card, text="Não tem uma chave? Contate: suporte@milhasup.com.br",
+            font=ctk.CTkFont(size=10), text_color=C_GRAY,
+        ).pack(pady=(4, 20))
+
+        def _do_activate():
+            key = key_var.get().strip()
+            if not key:
+                msg_lbl.configure(text="Digite a chave de licença.", text_color=C_RED)
+                return
+            btn.configure(state="disabled", text="Verificando...")
+            msg_lbl.configure(text="Conectando ao servidor...", text_color=C_GRAY)
+
+            def _run():
+                ok, result_msg = self._lic.activate(key)
+                def _update():
+                    btn.configure(state="normal", text="Ativar Software")
+                    if ok:
+                        msg_lbl.configure(text=result_msg, text_color=C_GREEN)
+                        # Reinicia a aplicação com a licença ativa
+                        self.after(1500, self._restart_with_license)
+                    else:
+                        msg_lbl.configure(text=result_msg, text_color=C_RED)
+                self.after(0, _update)
+            threading.Thread(target=_run, daemon=True).start()
+
+        btn.configure(command=_do_activate)
+        key_entry.bind("<Return>", lambda e: _do_activate())
+
+    def _restart_with_license(self):
+        """Reconstrói a UI completa após ativação bem-sucedida."""
+        for widget in self.winfo_children():
+            widget.destroy()
+        self._build_ui()
+        self._setup_tray()
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
+        self.after(200, self._poll)
+
     # ── UI ────────────────────────────────────────────────────────────────────
 
     def _build_ui(self):
@@ -253,10 +386,12 @@ class MilhasUpApp(ctk.CTk):
         self._t_dash = self._tabs.add("  Dashboard  ")
         self._t_cfg  = self._tabs.add("  Configuração  ")
         self._t_log  = self._tabs.add("  Logs  ")
+        self._t_lic  = self._tabs.add("  Licença  ")
 
         self._build_dashboard()
         self._build_config()
         self._build_logs()
+        self._build_license_tab()
 
     # ── Dashboard ─────────────────────────────────────────────────────────────
 
@@ -344,6 +479,16 @@ class MilhasUpApp(ctk.CTk):
         return lbl
 
     def _start(self):
+        if HAS_LICENSE and self._lic is not None:
+            ok, reason = self._lic.check_or_grace()
+            if not ok:
+                msgs = {
+                    "expired_local": "Licença expirada. Renove sua assinatura.",
+                    "revoked":       "Licença revogada. Contate o suporte.",
+                    "grace_expired": "Sem conexão com servidor de licença por mais de 24h.",
+                }
+                self.toast(msgs.get(reason, f"Licença inválida: {reason}"), False)
+                return
         self._btn_start.configure(state="disabled", text="Iniciando...")
         threading.Thread(target=self._do_start, daemon=True).start()
 
@@ -459,6 +604,7 @@ class MilhasUpApp(ctk.CTk):
         section("Avançado", "⚙")
         field("Delay entre envios (s)", "SEND_DELAY_SECONDS", "Ex: 3")
         check("Modo Teste — Dry-run (não envia)", "DRY_RUN")
+        check("Aceita Liminar (responder ofertas com 'liminar')", "ACEITA_LIMINAR")
 
         # Botões
         r = row[0]
@@ -511,6 +657,160 @@ class MilhasUpApp(ctk.CTk):
         running, _ = is_running()
         suffix = "\n⚠  Reinicie o monitor para aplicar as mudanças." if running else ""
         self.toast(f"Configurações salvas!{suffix}", True)
+
+    # ── Aba Licença ───────────────────────────────────────────────────────────
+
+    def _build_license_tab(self):
+        p = self._t_lic
+
+        card = ctk.CTkFrame(p, corner_radius=12)
+        card.pack(fill="x", padx=16, pady=16)
+
+        ctk.CTkLabel(
+            card, text="Status da Licença",
+            font=ctk.CTkFont(size=13, weight="bold"), anchor="w",
+        ).pack(fill="x", padx=16, pady=(14, 4))
+
+        # Labels de status (serão atualizados por _update_license_tab)
+        self._lic_status_lbl = ctk.CTkLabel(
+            card, text="...", font=ctk.CTkFont(size=14, weight="bold"),
+        )
+        self._lic_status_lbl.pack(anchor="w", padx=16)
+
+        grid = ctk.CTkFrame(card, fg_color="transparent")
+        grid.pack(fill="x", padx=16, pady=(8, 0))
+        grid.grid_columnconfigure((0, 1, 2, 3), weight=1)
+
+        def _lf(parent, label, col, row=0):
+            f = ctk.CTkFrame(parent, corner_radius=8)
+            f.grid(row=row, column=col, padx=4, pady=4, sticky="nsew")
+            ctk.CTkLabel(f, text=label, font=ctk.CTkFont(size=10),
+                         text_color=C_GRAY).pack(pady=(6, 0))
+            lbl = ctk.CTkLabel(f, text="—", font=ctk.CTkFont(size=13, weight="bold"))
+            lbl.pack(pady=(0, 6))
+            return lbl
+
+        self._lic_name_lbl    = _lf(grid, "Cliente",    0)
+        self._lic_plan_lbl    = _lf(grid, "Plano",      1)
+        self._lic_expiry_lbl  = _lf(grid, "Expira em",  2)
+        self._lic_days_lbl    = _lf(grid, "Dias restantes", 3)
+
+        self._lic_check_lbl = ctk.CTkLabel(
+            card, text="", font=ctk.CTkFont(size=10), text_color=C_GRAY,
+        )
+        self._lic_check_lbl.pack(anchor="w", padx=16, pady=(8, 4))
+
+        self._lic_key_lbl = ctk.CTkLabel(
+            card, text="", font=ctk.CTkFont(size=10, family="Consolas"),
+            text_color=C_GRAY,
+        )
+        self._lic_key_lbl.pack(anchor="w", padx=16, pady=(0, 4))
+
+        btns = ctk.CTkFrame(card, fg_color="transparent")
+        btns.pack(fill="x", padx=16, pady=(8, 14))
+
+        ctk.CTkButton(
+            btns, text="↺  Verificar Agora", width=160, height=34,
+            command=self._check_license_now,
+        ).pack(side="left", padx=(0, 8))
+
+        ctk.CTkButton(
+            btns, text="🔑  Trocar Chave", width=140, height=34,
+            fg_color="gray40", hover_color="gray50",
+            command=self._reset_license,
+        ).pack(side="left")
+
+        ctk.CTkLabel(
+            p, text="Para renovar: suporte@milhasup.com.br",
+            font=ctk.CTkFont(size=10), text_color=C_GRAY,
+        ).pack(pady=(4, 0))
+
+        self._update_license_tab()
+
+    def _update_license_tab(self):
+        if not HAS_LICENSE or self._lic is None:
+            return
+        state = self._lic.get_state()
+        if not state or not state.activated:
+            self._lic_status_lbl.configure(text="⬤  Não ativada", text_color=C_RED)
+            return
+
+        if state.is_expired():
+            self._lic_status_lbl.configure(text="⬤  Expirada", text_color=C_RED)
+        else:
+            days = state.days_remaining() or 0
+            if days <= 7:
+                self._lic_status_lbl.configure(
+                    text=f"⚠  Ativa — expira em {days} dia(s)", text_color=C_ORANGE)
+            else:
+                self._lic_status_lbl.configure(text="⬤  Ativa", text_color=C_GREEN)
+
+        # Expiry display
+        exp_str = "—"
+        if state.expires_at:
+            try:
+                from datetime import timezone
+                from datetime import datetime as dt
+                exp = dt.fromisoformat(state.expires_at.replace("Z", "+00:00"))
+                exp_str = exp.strftime("%d/%m/%Y")
+            except Exception:
+                exp_str = state.expires_at[:10]
+
+        plan_labels = {"monthly": "Mensal", "annual": "Anual", "lifetime": "Vitalício"}
+
+        self._lic_name_lbl.configure(text=state.customer_name or "—")
+        self._lic_plan_lbl.configure(text=plan_labels.get(state.plan, state.plan))
+        self._lic_expiry_lbl.configure(text=exp_str)
+        days = state.days_remaining()
+        self._lic_days_lbl.configure(
+            text=str(days) if days is not None else "—",
+            text_color=C_RED if (days is not None and days <= 7) else C_GREEN,
+        )
+
+        # Último check
+        if state.last_check_ts:
+            last = datetime.fromtimestamp(state.last_check_ts).strftime("%d/%m %H:%M")
+            self._lic_check_lbl.configure(text=f"Último check online: {last}")
+        else:
+            self._lic_check_lbl.configure(text="Nenhum check registrado")
+
+        # Chave (parcialmente oculta)
+        k = state.key
+        if len(k) > 9:
+            k_disp = k[:9] + "••••" + k[-4:]
+        else:
+            k_disp = k
+        self._lic_key_lbl.configure(text=f"Chave: {k_disp}")
+
+    def _check_license_now(self):
+        if not HAS_LICENSE or self._lic is None:
+            return
+        state = self._lic.get_state()
+        if not state:
+            return
+        # Força recheck zerando last_check_ts temporariamente
+        state.last_check_ts = 0
+        ok, reason = self._lic.check_or_grace()
+        self._update_license_tab()
+        if ok:
+            self.toast("Licença verificada com sucesso!", True)
+        else:
+            msgs = {
+                "expired":      "Licença expirada. Renove sua assinatura.",
+                "revoked":      "Licença revogada. Contate o suporte.",
+                "grace_expired":"Sem conexão com servidor por mais de 24h.",
+                "hw_mismatch":  "Hardware diferente do registrado.",
+            }
+            self.toast(msgs.get(reason, f"Erro: {reason}"), False)
+
+    def _reset_license(self):
+        if messagebox.askyesno("Trocar Chave",
+                               "Deseja remover a ativação atual e inserir uma nova chave?"):
+            if self._lic:
+                self._lic.clear_local()
+            for widget in self.winfo_children():
+                widget.destroy()
+            self._build_activation_screen()
 
     # ── Logs ─────────────────────────────────────────────────────────────────
 
@@ -586,6 +886,8 @@ class MilhasUpApp(ctk.CTk):
 
     def _poll(self):
         self._update_status()
+        if hasattr(self, "_lic_status_lbl"):
+            self._update_license_tab()
         self.after(4000, self._poll)
 
     def _update_status(self):
