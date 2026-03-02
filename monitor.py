@@ -377,15 +377,29 @@ async def main():
     state = load_state()
     seen = state.setdefault('seen', {})
 
+    try:
+        _log  # type: ignore  # noqa: F821
+    except NameError:
+        def _log(msg: str): pass  # type: ignore  # dev mode — sem log em arquivo
+
+    _log(f'Targets: {targets} | DRY_RUN={dry_run}')
+    _log('Criando TelegramClient...')
+
     client = TelegramClient(os.path.join(_BASE, 'session'), api_id, api_hash)
+    _log('Conectando ao Telegram...')
     await client.connect()
+    _log('Conectado. Verificando sessao...')
     await ensure_login(client, phone)
+    _log('Sessao OK. Resolvendo targets...')
 
     entities = []
     for t in targets:
+        _log(f'  resolve_target: {t!r}')
         ent = await resolve_target(client, t)
         entities.append(ent)
+        _log(f'  -> OK: {ent}')
 
+    _log(f'Todos os targets resolvidos ({len(entities)}). Registrando handler...')
     print('---')
     print('Targets:', targets)
     print('Dry run:', dry_run)
@@ -626,9 +640,36 @@ async def main():
                 daemon=True
             ).start()
 
+    _log('LISTENING — run_until_disconnected()')
     print('Listening... (Ctrl+C to stop)')
     await client.run_until_disconnected()
+    _log('run_until_disconnected() retornou — Telegram desconectou!')
 
 if __name__ == '__main__':
     import asyncio
-    asyncio.run(main())
+    import traceback
+
+    _log_path = os.path.join(_BASE, 'startup_error.log')
+
+    def _log(msg: str):
+        """Log timestamped message to startup_error.log (append mode)."""
+        try:
+            ts = __import__('datetime').datetime.now().strftime('%H:%M:%S')
+            with open(_log_path, 'a', encoding='utf-8') as _f:
+                _f.write(f'[{ts}] {msg}\n')
+        except Exception:
+            pass
+
+    # Limpa log antigo
+    try:
+        open(_log_path, 'w').close()
+    except Exception:
+        pass
+
+    _log(f'monitor_bg iniciando (frozen={_IS_FROZEN}, base={_BASE})')
+    try:
+        asyncio.run(main())
+        _log('main() retornou normalmente')
+    except BaseException as _exc:
+        _log(f'EXCECAO ({type(_exc).__name__}): {traceback.format_exc()}')
+        raise

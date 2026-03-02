@@ -5,6 +5,7 @@ Versão 1.0.0
 """
 from __future__ import annotations
 
+import ctypes
 import json
 import os
 import subprocess
@@ -107,26 +108,37 @@ def get_pid():
 
 _NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
+# ATENÇÃO: os.kill(pid, 0) no Python 3.9 Windows MATA o processo via TerminateProcess!
+# O tratamento especial de sig=0 só existe a partir do Python 3.11.
+# Usar ctypes diretamente para verificar existência sem matar.
+def _pid_alive(pid: int) -> bool:
+    """Verifica se o PID existe sem spawnar subprocess e sem matar o processo."""
+    try:
+        SYNCHRONIZE = 0x00100000
+        handle = ctypes.windll.kernel32.OpenProcess(SYNCHRONIZE, False, pid)
+        if handle:
+            ctypes.windll.kernel32.CloseHandle(handle)
+            return True
+        return False
+    except Exception:
+        return False
+
 def is_running():
     pid = get_pid()
     if pid is None:
         return False, None
-    try:
-        # os.kill(pid, 0) verifica se o processo existe sem spawnar subprocess
-        os.kill(pid, 0)
-        return True, pid
-    except OSError:
-        return False, None
-    except Exception:
-        return False, None
+    return (_pid_alive(pid), pid) if _pid_alive(pid) else (False, None)
 
 
 def do_start():
     running, pid = is_running()
     if running:
         return False, f"Monitor já está rodando (PID {pid})"
-    PID_PATH.unlink(missing_ok=True)
-    LOCK_PATH.unlink(missing_ok=True)
+    # Limpa arquivos de estado — ignora erros (ex: lock ainda aberto por processo morto)
+    try: PID_PATH.unlink(missing_ok=True)
+    except Exception: pass
+    try: LOCK_PATH.unlink(missing_ok=True)
+    except Exception: pass
     cmd = MONITOR_CMD
     if not Path(cmd[0]).exists():
         return False, f"Executável não encontrado:\n{cmd[0]}"
