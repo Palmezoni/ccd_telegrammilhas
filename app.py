@@ -40,10 +40,11 @@ VERSION  = "1.0.0"
 IS_FROZEN = getattr(sys, "frozen", False)
 BASE_DIR  = Path(sys.executable).parent if IS_FROZEN else Path(__file__).parent.resolve()
 
-ENV_PATH    = BASE_DIR / ".env"
-PID_PATH    = BASE_DIR / "monitor.pid"
-LOCK_PATH   = BASE_DIR / "monitor.lock"
-EVENTS_PATH = BASE_DIR / "events.jsonl"
+ENV_PATH     = BASE_DIR / ".env"
+PID_PATH     = BASE_DIR / "monitor.pid"
+LOCK_PATH    = BASE_DIR / "monitor.lock"
+EVENTS_PATH  = BASE_DIR / "events.jsonl"
+SESSION_PATH = BASE_DIR / "session.session"
 
 # Produção: monitor_bg/monitor_bg.exe (--onedir, sem flash de CMD)
 # Dev: pythonw do venv + monitor.py
@@ -922,8 +923,56 @@ class MilhasUpApp(ctk.CTk):
                 }
                 self.toast(msgs.get(reason, f"Licença inválida: {reason}"), False)
                 return
+        # Verifica se a sessão Telegram existe — se não, faz auth primeiro
+        if not SESSION_PATH.exists():
+            self._do_telegram_auth(then_start=True)
+            return
         self._btn_start.configure(state="disabled", text="Iniciando...")
         threading.Thread(target=self._do_start, daemon=True).start()
+
+    def _do_telegram_auth(self, then_start: bool = False):
+        """Abre uma janela de terminal para autenticar o Telegram via --auth."""
+        monitor_exe = BASE_DIR / "monitor_bg" / "monitor_bg.exe"
+        if not monitor_exe.exists():
+            messagebox.showerror("Erro", f"Executável não encontrado:\n{monitor_exe}")
+            return
+
+        # Confirma com o usuário
+        answer = messagebox.askokcancel(
+            "Autenticar Telegram",
+            "A sessão do Telegram não está autenticada.\n\n"
+            "Uma janela de terminal será aberta.\n"
+            "Siga as instruções e informe o código que chegará no seu Telegram.\n\n"
+            "Clique OK para continuar."
+        )
+        if not answer:
+            return
+
+        # Lança o executável com --auth em uma janela de console visível
+        try:
+            subprocess.Popen(
+                [str(monitor_exe), "--auth"],
+                cwd=str(BASE_DIR),
+                creationflags=subprocess.CREATE_NEW_CONSOLE,
+            )
+        except Exception as e:
+            messagebox.showerror("Erro ao abrir terminal", str(e))
+            return
+
+        # Aguarda a criação do session.session em background
+        def _wait_for_session():
+            self.after(0, lambda: self.toast("Aguardando autenticação Telegram...", True))
+            for _ in range(300):   # até 5 minutos
+                time.sleep(1)
+                if SESSION_PATH.exists():
+                    self.after(0, lambda: self.toast("✅ Telegram autenticado!", True))
+                    if then_start:
+                        time.sleep(0.8)
+                        self.after(0, self._start)
+                    return
+            self.after(0, lambda: self.toast("Timeout: sessão Telegram não foi criada.", False))
+
+        threading.Thread(target=_wait_for_session, daemon=True).start()
 
     def _stop(self):
         self._btn_stop.configure(state="disabled", text="Parando...")

@@ -280,23 +280,23 @@ def send_ntfy(topic: str, message: str, title: str = 'Monitor Milhas'):
     except Exception as e:
         print(f"[WARN] ntfy notify failed: {e}")
 
-async def ensure_login(client: TelegramClient, phone: str):
+async def ensure_login(client: TelegramClient, phone: str, force_interactive: bool = False):
     if await client.is_user_authorized():
         return
     # Sem console (execução headless/frozen) não há como pedir o código interativamente.
     # Neste caso a session.session precisa já estar autenticada na pasta do executável.
-    if _IS_FROZEN or not sys.stdin or not sys.stdin.isatty():
+    # A flag force_interactive=True (passada via --auth) bypassa essa restrição.
+    if (_IS_FROZEN or not sys.stdin or not sys.stdin.isatty()) and not force_interactive:
         raise RuntimeError(
             "Sessão Telegram não autenticada.\n"
-            "Execute o monitor uma vez pelo console (python monitor.py) para fazer login,\n"
-            "depois copie o arquivo session.session para a pasta de instalação."
+            "Clique em 'Autenticar Telegram' na aba Dashboard para fazer login."
         )
     await client.send_code_request(phone)
-    code = input('Telegram code (SMS/app): ').strip()
+    code = input('Código Telegram (SMS/app): ').strip()
     try:
         await client.sign_in(phone=phone, code=code)
     except SessionPasswordNeededError:
-        pw = input('2FA password: ').strip()
+        pw = input('Senha 2FA: ').strip()
         await client.sign_in(password=pw)
 
 async def resolve_target(client: TelegramClient, target: str):
@@ -367,6 +367,7 @@ async def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--send', action='store_true', help='actually send messages (overrides DRY_RUN=1)')
     ap.add_argument('--dry-run', action='store_true', help='force dry run (never send)')
+    ap.add_argument('--auth', action='store_true', help='apenas autentica o Telegram e sai (cria session.session)')
     args = ap.parse_args()
 
     api_id = os.getenv('TG_API_ID')
@@ -374,8 +375,24 @@ async def main():
     phone = os.getenv('TG_PHONE')
     targets_raw = os.getenv('TG_TARGETS') or os.getenv('TG_TARGET')
 
-    if not api_id or not api_hash or not phone or not targets_raw:
-        raise SystemExit('Missing env vars. Fill .env (TG_API_ID, TG_API_HASH, TG_PHONE, TG_TARGETS).')
+    if not api_id or not api_hash or not phone:
+        raise SystemExit('Missing env vars. Fill .env (TG_API_ID, TG_API_HASH, TG_PHONE).')
+
+    # ── Modo --auth: só autentica e sai ───────────────────────────────────────
+    if args.auth:
+        print(f"\n=== MilhasUP Monitor — Autenticação Telegram ===")
+        print(f"Telefone: {phone}")
+        print("Conectando ao Telegram...\n")
+        auth_client = TelegramClient(os.path.join(_BASE, 'session'), int(api_id), api_hash)
+        await auth_client.connect()
+        await ensure_login(auth_client, phone, force_interactive=True)
+        await auth_client.disconnect()
+        print("\n✅ Autenticação concluída! Pode fechar esta janela.")
+        input("Pressione Enter para fechar...")
+        return
+
+    if not targets_raw:
+        raise SystemExit('Missing env var TG_TARGETS.')
 
     targets = [t.strip() for t in targets_raw.split(',') if t.strip()]
 
