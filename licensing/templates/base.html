@@ -8,15 +8,27 @@
   <style>
     /* ── Variáveis Bootstrap override (dark mode) ── */
     :root {
-      --bs-body-color: #e6edf3;
-      --bs-body-bg: #0d1117;
-      --bs-secondary-color: #8b949e;
-      --bs-secondary-bg: #161b22;
-      --bs-emphasis-color: #f0f6fc;
-      --bs-border-color: #30363d;
-      --bs-link-color: #58a6ff;
-      --bs-link-hover-color: #79c0ff;
-      --bs-code-color: #79c0ff;
+      --bs-body-color:            #e6edf3;
+      --bs-body-color-rgb:        230, 237, 243;   /* obrigatório BS 5.3 */
+      --bs-body-bg:               #0d1117;
+      --bs-body-bg-rgb:           13,  17,  23;
+      --bs-secondary-color:       #8b949e;
+      --bs-secondary-color-rgb:   139, 148, 158;   /* usado por .text-muted */
+      --bs-secondary-bg:          #161b22;
+      --bs-secondary-bg-rgb:      22,  27,  34;
+      --bs-tertiary-color:        #8b949e;
+      --bs-tertiary-color-rgb:    139, 148, 158;
+      --bs-tertiary-bg:           #1c2128;
+      --bs-tertiary-bg-rgb:       28,  33,  40;
+      --bs-emphasis-color:        #f0f6fc;
+      --bs-emphasis-color-rgb:    240, 246, 252;
+      --bs-border-color:          #30363d;
+      --bs-border-color-translucent: rgba(48,54,61,.6);
+      --bs-link-color:            #58a6ff;
+      --bs-link-color-rgb:        88, 166, 255;
+      --bs-link-hover-color:      #79c0ff;
+      --bs-link-hover-color-rgb:  121, 192, 255;
+      --bs-code-color:            #79c0ff;
     }
     body { background: #0d1117; color: #e6edf3; }
 
@@ -79,13 +91,17 @@
       background: rgba(218,54,51,.12); border-color: #da3633; color: #ff7b72;
     }
 
-    /* Textos auxiliares */
-    .text-muted { color: #8b949e !important; }
-    small, .small { color: #8b949e; }
+    /* Textos auxiliares — forçar cor independente das vars Bootstrap */
+    .text-muted,
+    .text-muted *,
+    small, .small { color: #8b949e !important; }
 
     /* Stats cards */
     .stat-card { text-align: center; padding: 1rem; }
-    .stat-card .number { font-size: 2rem; font-weight: 700; }
+    .stat-card .number { font-size: 2rem; font-weight: 700; color: #e6edf3; }
+    .stat-card .text-muted,
+    .stat-card small,
+    .stat-card .small { color: #8b949e !important; font-size: .85rem; }
 
     /* Paginação */
     .btn-outline-secondary.btn-sm { padding: .2rem .55rem; font-size: .8rem; }
