@@ -312,6 +312,29 @@ def admin_notes(
     return RedirectResponse(f"/admin/{lic_id}?msg=Notas+salvas.", status_code=302)
 
 
+# ── Landing Page & Folder (marketing) ────────────────────────────────────────
+
+_CAKTO_URL = os.getenv("CAKTO_URL", "#assinar")  # definir no Railway env
+
+
+@app.get("/", response_class=HTMLResponse)
+def landing(request: Request):
+    from datetime import date
+    return templates.TemplateResponse("landing.html", {
+        "request": request,
+        "cakto_url": _CAKTO_URL,
+        "current_year": date.today().year,
+    })
+
+
+@app.get("/folder", response_class=HTMLResponse)
+def folder(request: Request):
+    return templates.TemplateResponse("folder.html", {
+        "request": request,
+        "cakto_url": _CAKTO_URL,
+    })
+
+
 # ── Health check ─────────────────────────────────────────────────────────────
 
 @app.get("/health")
