@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Minha Conta — MilhasUP Monitor</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    :root {
+      --bs-body-color: #e6edf3; --bs-body-color-rgb: 230,237,243;
+      --bs-body-bg: #0d1117; --bs-secondary-color-rgb: 139,148,158;
+      --bs-secondary-color: #8b949e; --bs-border-color: #30363d;
+      --bs-link-color: #58a6ff;
+    }
+    body { background: #0d1117; color: #e6edf3; font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+    .navbar { background: #161b22 !important; border-bottom: 1px solid #30363d; }
+    .card { background: #161b22; border: 1px solid #30363d; color: #e6edf3; border-radius: 14px; }
+    .form-control { background: #0d1117; color: #e6edf3; border-color: #30363d; }
+    .form-control:focus { background: #0d1117; color: #e6edf3; border-color: #58a6ff; box-shadow: 0 0 0 .2rem rgba(88,166,255,.2); }
+    .form-control::placeholder { color: #484f58; }
+    label, .form-label { color: #e6edf3 !important; }
+    .badge.bg-success { background: #238636 !important; }
+    .badge.bg-warning { background: #9e6a03 !important; color: #e6edf3 !important; }
+    .badge.bg-secondary { background: #484f58 !important; }
+    .badge.bg-danger { background: #da3633 !important; }
+    .text-muted, small { color: #8b949e !important; }
+    a { color: #58a6ff; } a:hover { color: #79c0ff; }
+    .btn-primary { background: #238636; border-color: #238636; }
+    .btn-primary:hover { background: #2ea043; border-color: #2ea043; }
+    .btn-outline-secondary { color: #8b949e; border-color: #30363d; }
+    .btn-outline-secondary:hover { background: #21262d; color: #e6edf3; }
+    .btn-danger { background: #da3633; border-color: #da3633; }
+    .btn-outline-danger { color: #f85149; border-color: #f85149; }
+    .btn-outline-danger:hover { background: rgba(248,81,73,.1); }
+    .hero { background: linear-gradient(135deg, #0f172a, #1e3a8a); border-radius: 14px; padding: 2.5rem; margin-bottom: 2rem; }
+    .key-box { background: #0d1117; border: 1px solid #30363d; border-radius: 8px; padding: 1rem 1.5rem; font-family: 'Courier New', monospace; font-size: 1.2rem; letter-spacing: 2px; color: #93c5fd; word-break: break-all; }
+    .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: .8rem; }
+    .info-cell { background: #0d1117; border: 1px solid #30363d; border-radius: 10px; padding: .8rem 1rem; }
+    .info-cell .lbl { font-size: .72rem; color: #8b949e; text-transform: uppercase; letter-spacing: .5px; }
+    .info-cell .val { font-size: 1rem; font-weight: 700; margin-top: 3px; }
+    .alert-dark { background: #161b22; border-color: #30363d; color: #e6edf3; }
+    .cancel-box { border: 1px solid #da3633; border-radius: 12px; padding: 1.5rem; background: rgba(218,54,51,.06); }
+  </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark mb-4">
+  <div class="container">
+    <a class="navbar-brand fw-bold" href="/">✈ MilhasUP Monitor</a>
+    <a href="{{ landing_url }}" class="btn btn-sm btn-outline-secondary">← Voltar ao site</a>
+  </div>
+</nav>
+
+<div class="container" style="max-width:680px; padding-bottom:4rem;">
+
+  <!-- Hero -->
+  <div class="hero text-center">
+    <p style="font-size:2rem;margin:0 0 .3rem;">👤</p>
+    <h1 style="font-size:1.6rem;font-weight:800;margin:0 0 .5rem;">Minha Conta</h1>
+    <p class="mb-0" style="color:#94a3b8;font-size:.95rem;">
+      Consulte o status da sua licença e gerencie sua assinatura
+    </p>
+  </div>
+
+  {% if not license %}
+  <!-- ── Formulário de consulta ── -->
+  <div class="card p-4 mb-3">
+    <h5 class="mb-3 fw-bold">Consultar licença</h5>
+    <p class="text-muted" style="font-size:.9rem;">
+      Digite sua chave de licença para ver o status da sua assinatura.
+    </p>
+    {% if error %}
+    <div class="alert" style="background:rgba(218,54,51,.12);border-color:#da3633;color:#ff7b72;border-radius:8px;">
+      {{ error }}
+    </div>
+    {% endif %}
+    <form method="get" action="/conta">
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Chave de Licença</label>
+        <input type="text" name="key" class="form-control"
+               placeholder="MILH-XXXX-XXXX-XXXX"
+               style="font-family:'Courier New',monospace;font-size:1rem;letter-spacing:1px;"
+               value="{{ query_key }}" required autofocus>
+        <div class="form-text">A chave foi enviada para o seu e-mail após a compra.</div>
+      </div>
+      <button type="submit" class="btn btn-primary w-100">🔍 Consultar Status</button>
+    </form>
+  </div>
+
+  <div class="text-center mt-3">
+    <p class="text-muted" style="font-size:.85rem;">
+      Não encontrou o e-mail com sua chave?
+      <a href="mailto:{{ support_email }}">Entre em contato com o suporte</a>
+    </p>
+  </div>
+
+  {% else %}
+  <!-- ── Detalhes da licença ── -->
+  <div class="card p-4 mb-3">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <h5 class="mb-0 fw-bold">Status da Licença</h5>
+      {% if license.status == 'active' %}
+        <span class="badge bg-success fs-6">● Ativa</span>
+      {% elif license.status == 'pending' %}
+        <span class="badge bg-warning fs-6">○ Pendente</span>
+      {% elif license.status == 'expired' %}
+        <span class="badge bg-secondary fs-6">✗ Expirada</span>
+      {% else %}
+        <span class="badge bg-danger fs-6">✗ Revogada</span>
+      {% endif %}
+    </div>
+
+    <!-- Chave -->
+    <label class="form-label text-muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.5px;">
+      Chave de Licença
+    </label>
+    <div class="key-box mb-4">{{ license.key }}</div>
+
+    <!-- Info grid -->
+    <div class="info-grid mb-3">
+      <div class="info-cell">
+        <div class="lbl">Cliente</div>
+        <div class="val">{{ license.customer_name or "—" }}</div>
+      </div>
+      <div class="info-cell">
+        <div class="lbl">Plano</div>
+        <div class="val">{{ license.plan | title }}</div>
+      </div>
+      <div class="info-cell">
+        <div class="lbl">Expira em</div>
+        <div class="val">{{ license.expires_at | fmtdt if license.expires_at else "—" }}</div>
+      </div>
+      <div class="info-cell">
+        <div class="lbl">Dias restantes</div>
+        <div class="val {% if days_remaining is not none and days_remaining <= 7 %}text-warning{% else %}text-success{% endif %}">
+          {{ days_remaining if days_remaining is not none else "—" }}
+        </div>
+      </div>
+    </div>
+
+    {% if license.customer_email %}
+    <p class="text-muted" style="font-size:.82rem; margin-bottom:.5rem;">
+      E-mail: {{ license.customer_email }}
+    </p>
+    {% endif %}
+    {% if license.hw_label %}
+    <p class="text-muted" style="font-size:.82rem; margin-bottom:.5rem;">
+      Computador vinculado: <code style="color:#8b949e;">{{ license.hw_label }}</code>
+    </p>
+    {% endif %}
+  </div>
+
+  <!-- ── Ações ── -->
+  {% if license.status == 'active' %}
+  <div class="card p-4 mb-3">
+    <h6 class="fw-bold mb-3">Gerenciar Assinatura</h6>
+    <p style="font-size:.9rem;color:#94a3b8;margin-bottom:1.2rem;">
+      Para cancelar ou alterar sua assinatura, acesse o portal da Cakto —
+      a plataforma de pagamento que processa sua assinatura mensal.
+    </p>
+    <a href="{{ cakto_portal }}" target="_blank" rel="noopener"
+       class="btn btn-outline-secondary w-100 mb-2">
+      ⚙️ Gerenciar assinatura na Cakto
+    </a>
+    <p class="text-muted text-center" style="font-size:.78rem;margin:0;">
+      Após cancelar na Cakto, o acesso permanece ativo até o final do período pago.
+    </p>
+  </div>
+
+  <div class="cancel-box mb-3">
+    <h6 class="fw-bold mb-2" style="color:#f85149;">Cancelar Assinatura</h6>
+    <p style="font-size:.88rem;color:#94a3b8;margin-bottom:1rem;">
+      Se quiser cancelar, acesse o portal da Cakto e cancele por lá.
+      <strong>Não há multa ou fidelidade.</strong> O acesso continua até o fim do período pago.
+    </p>
+    <a href="{{ cakto_portal }}" target="_blank" rel="noopener"
+       class="btn btn-outline-danger btn-sm">
+      Cancelar minha assinatura →
+    </a>
+  </div>
+  {% endif %}
+
+  {% if license.status == 'expired' %}
+  <div class="card p-4 mb-3 text-center">
+    <p style="font-size:1.5rem;margin-bottom:.5rem;">⏰</p>
+    <h6 class="fw-bold mb-2">Licença Expirada</h6>
+    <p style="font-size:.9rem;color:#94a3b8;margin-bottom:1.2rem;">
+      Sua licença expirou. Renove agora para continuar monitorando ofertas de milhas.
+    </p>
+    <a href="{{ cakto_url }}" class="btn btn-primary">🔄 Renovar Assinatura — R$ 19,90/mês</a>
+  </div>
+  {% endif %}
+
+  <div class="text-center mt-3">
+    <a href="/conta" class="text-muted" style="font-size:.82rem;">← Consultar outra chave</a>
+    &nbsp;·&nbsp;
+    <a href="mailto:{{ support_email }}" class="text-muted" style="font-size:.82rem;">Suporte</a>
+  </div>
+  {% endif %}
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

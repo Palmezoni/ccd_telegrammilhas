@@ -1,11 +1,16 @@
 """FastAPI — Licensing Server para MilhasUP Telegram Monitor."""
 from __future__ import annotations
 
+import asyncio
+import hashlib
+import hmac
+import json
+import logging
 import os
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Any, Optional
 
-from fastapi import Depends, FastAPI, Form, HTTPException, Request
+from fastapi import BackgroundTasks, Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -13,9 +18,19 @@ from sqlalchemy.orm import Session
 
 from . import auth, crud, models, schemas
 from .database import Base, engine, get_db
+from .email_service import (
+    CAKTO_PORTAL, INSTALLER_URL, LANDING_URL, SMTP_USER, SUPPORT_EMAIL,
+    send_welcome_email,
+)
+
+log = logging.getLogger(__name__)
 
 # Cria tabelas se não existirem
 Base.metadata.create_all(bind=engine)
+
+# ── Webhook config ────────────────────────────────────────────────────────────
+CAKTO_WEBHOOK_SECRET = os.getenv("CAKTO_WEBHOOK_SECRET", "")
+CAKTO_URL            = os.getenv("CAKTO_URL", "#assinar")
 
 app = FastAPI(title="MilhasUP License API", docs_url=None, redoc_url=None)
 
@@ -314,25 +329,163 @@ def admin_notes(
 
 # ── Landing Page & Folder (marketing) ────────────────────────────────────────
 
-_CAKTO_URL = os.getenv("CAKTO_URL", "#assinar")  # definir no Railway env
-
-
 @app.get("/", response_class=HTMLResponse)
 def landing(request: Request):
     from datetime import date
     return templates.TemplateResponse("landing.html", {
         "request": request,
-        "cakto_url": _CAKTO_URL,
+        "cakto_url": CAKTO_URL,
         "current_year": date.today().year,
     })
 
 
 @app.get("/folder", response_class=HTMLResponse)
-def folder(request: Request):
+def folder_page(request: Request):
     return templates.TemplateResponse("folder.html", {
         "request": request,
-        "cakto_url": _CAKTO_URL,
+        "cakto_url": CAKTO_URL,
     })
+
+
+# ── Portal do Cliente — /conta ────────────────────────────────────────────────
+
+@app.get("/conta", response_class=HTMLResponse)
+def conta_get(
+    request: Request,
+    key: str = "",
+    db: Session = Depends(get_db),
+):
+    ctx: dict[str, Any] = {
+        "request":       request,
+        "license":       None,
+        "days_remaining": None,
+        "error":         "",
+        "query_key":     key,
+        "support_email": SUPPORT_EMAIL,
+        "cakto_portal":  CAKTO_PORTAL,
+        "cakto_url":     CAKTO_URL,
+        "landing_url":   LANDING_URL,
+    }
+    if key:
+        lic = crud.get_license_by_key(db, key.strip().upper())
+        if not lic:
+            ctx["error"] = "Chave não encontrada. Verifique se digitou corretamente."
+        else:
+            ctx["license"] = lic
+            if lic.expires_at:
+                ctx["days_remaining"] = max(
+                    0, (lic.expires_at - datetime.now(timezone.utc)).days
+                )
+    return templates.TemplateResponse("conta.html", ctx)
+
+
+# ── Webhook Cakto (pagamento confirmado) ──────────────────────────────────────
+
+def _extract_customer(payload: dict) -> tuple[str, str]:
+    """Tenta extrair (nome, email) de múltiplos formatos possíveis do Cakto."""
+    # Formatos possíveis: data.customer, checkout.customer, customer
+    for path in ["data.customer", "checkout.customer", "customer", "data.buyer", "buyer"]:
+        obj = payload
+        for part in path.split("."):
+            obj = obj.get(part, {}) if isinstance(obj, dict) else {}
+        if isinstance(obj, dict) and obj.get("email"):
+            return obj.get("name", ""), obj.get("email", "")
+    return "", ""
+
+
+def _is_payment_event(payload: dict) -> bool:
+    """Detecta eventos de pagamento confirmado em múltiplos formatos."""
+    event = (payload.get("event") or payload.get("type") or "").lower()
+    paid_keywords = ("paid", "approved", "confirmed", "payment.paid",
+                     "purchase", "order.paid", "subscription.created")
+    if any(kw in event for kw in paid_keywords):
+        return True
+    # Verifica status dentro do payload
+    for path in ["data.status", "checkout.status", "status"]:
+        obj = payload
+        for part in path.split("."):
+            obj = obj.get(part, "") if isinstance(obj, dict) else ""
+        if isinstance(obj, str) and obj.lower() in ("paid", "approved", "active"):
+            return True
+    return False
+
+
+async def _process_cakto_payment(payload: dict, db: Session):
+    """Processa pagamento: cria licença + envia e-mail de boas-vindas."""
+    name, email = _extract_customer(payload)
+    if not email:
+        log.warning("Webhook Cakto: e-mail do cliente não encontrado. Payload: %s",
+                    json.dumps(payload)[:400])
+        return
+
+    # Verifica se já existe licença ativa para este e-mail
+    existing = crud.get_license_by_email(db, email)
+    if existing and existing.status == "active":
+        # Apenas estende por 30 dias
+        crud.extend_license(db, existing, 30)
+        log.info("Webhook Cakto: licença renovada para %s", email)
+        return
+
+    # Cria nova licença (30 dias)
+    expires = datetime.now(timezone.utc) + timedelta(days=30)
+    lic_data = schemas.LicenseCreate(
+        customer_name=name or email.split("@")[0],
+        customer_email=email,
+        plan="monthly",
+        expires_at=expires,
+        notes=f"Criada automaticamente via webhook Cakto — {datetime.now().isoformat()}",
+    )
+    lic = crud.create_license(db, lic_data)
+    log.info("Webhook Cakto: nova licença %s criada para %s", lic.key, email)
+
+    # Envia e-mail em thread separada (não bloqueia o event loop)
+    await asyncio.to_thread(
+        send_welcome_email,
+        to_email=email,
+        customer_name=name or email.split("@")[0],
+        license_key=lic.key,
+        plan="Mensal",
+        expires_at=expires.isoformat(),
+    )
+
+
+@app.post("/webhook/cakto")
+async def webhook_cakto(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    """Recebe notificações de pagamento da Cakto e cria licenças automaticamente."""
+    body = await request.body()
+
+    # ── Verificação de assinatura (opcional) ──────────────────────────────────
+    if CAKTO_WEBHOOK_SECRET:
+        sig_header = (
+            request.headers.get("x-cakto-signature")
+            or request.headers.get("x-webhook-secret")
+            or request.headers.get("x-signature")
+            or ""
+        )
+        expected = hmac.new(
+            CAKTO_WEBHOOK_SECRET.encode(),
+            body,
+            hashlib.sha256,
+        ).hexdigest()
+        if not hmac.compare_digest(sig_header, expected):
+            log.warning("Webhook Cakto: assinatura inválida")
+            raise HTTPException(401, "Invalid signature")
+
+    try:
+        payload = json.loads(body)
+    except Exception:
+        raise HTTPException(400, "Invalid JSON")
+
+    log.info("Webhook Cakto recebido: event=%s", payload.get("event", "?"))
+
+    if _is_payment_event(payload):
+        background_tasks.add_task(_process_cakto_payment, payload, db)
+
+    return {"received": True}
 
 
 # ── Health check ─────────────────────────────────────────────────────────────

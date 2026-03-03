@@ -1158,10 +1158,44 @@ class MilhasUpApp(ctk.CTk):
             command=self._reset_license,
         ).pack(side="left")
 
+        # ── Card de Gerenciamento de Assinatura ───────────────────────────────
+        mgmt = ctk.CTkFrame(p, corner_radius=12, border_width=1, border_color="#30363d")
+        mgmt.pack(fill="x", padx=16, pady=(12, 0))
+
         ctk.CTkLabel(
-            p, text="Para renovar: suporte@milhasup.com.br",
+            mgmt, text="Gerenciar Assinatura",
+            font=ctk.CTkFont(size=13, weight="bold"), anchor="w",
+        ).pack(fill="x", padx=16, pady=(14, 2))
+
+        ctk.CTkLabel(
+            mgmt,
+            text=(
+                "Cancele, renove ou atualize sua assinatura pelo portal da Cakto. "
+                "O acesso permanece ativo até o fim do período pago."
+            ),
+            font=ctk.CTkFont(size=11), text_color=C_GRAY,
+            wraplength=640, justify="left", anchor="w",
+        ).pack(fill="x", padx=16, pady=(0, 8))
+
+        mgmt_btns = ctk.CTkFrame(mgmt, fg_color="transparent")
+        mgmt_btns.pack(fill="x", padx=16, pady=(0, 14))
+
+        ctk.CTkButton(
+            mgmt_btns, text="⚙  Gerenciar / Cancelar Assinatura", width=240, height=34,
+            fg_color="#1e40af", hover_color="#1d4ed8",
+            command=self._open_subscription_portal,
+        ).pack(side="left", padx=(0, 8))
+
+        ctk.CTkButton(
+            mgmt_btns, text="👤  Minha Conta (web)", width=180, height=34,
+            fg_color="gray40", hover_color="gray50",
+            command=self._open_account_page,
+        ).pack(side="left")
+
+        ctk.CTkLabel(
+            p, text="Suporte: suporte@milhasup.net.br  |  milhasup.net.br/monitor",
             font=ctk.CTkFont(size=10), text_color=C_GRAY,
-        ).pack(pady=(4, 0))
+        ).pack(pady=(12, 0))
 
         self._update_license_tab()
 
@@ -1249,6 +1283,22 @@ class MilhasUpApp(ctk.CTk):
             for widget in self.winfo_children():
                 widget.destroy()
             self._build_activation_screen()
+
+    def _open_subscription_portal(self):
+        """Abre o portal da Cakto para gerenciar/cancelar assinatura."""
+        import webbrowser
+        portal_url = read_env().get("CAKTO_PORTAL_URL", "https://cakto.com.br/minha-conta")
+        webbrowser.open(portal_url)
+
+    def _open_account_page(self):
+        """Abre o portal web da conta MilhasUP com a chave preenchida."""
+        import webbrowser
+        state = self._lic.get_state() if self._lic else None
+        base = "https://milhasup-licensing-production.up.railway.app/conta"
+        if state and state.key:
+            webbrowser.open(f"{base}?key={state.key}")
+        else:
+            webbrowser.open(base)
 
     # ── Logs ─────────────────────────────────────────────────────────────────
 

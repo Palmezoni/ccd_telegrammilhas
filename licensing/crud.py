@@ -18,6 +18,16 @@ def get_license_by_id(db: Session, lic_id: int) -> Optional[models.License]:
     return db.query(models.License).filter(models.License.id == lic_id).first()
 
 
+def get_license_by_email(db: Session, email: str) -> Optional[models.License]:
+    """Retorna a licença mais recente para um e-mail (para renovação via webhook)."""
+    return (
+        db.query(models.License)
+        .filter(models.License.customer_email == email.lower().strip())
+        .order_by(models.License.created_at.desc())
+        .first()
+    )
+
+
 def list_licenses(db: Session, search: str = "", status: str = "", page: int = 1, per_page: int = 30):
     q = db.query(models.License)
     if search:
