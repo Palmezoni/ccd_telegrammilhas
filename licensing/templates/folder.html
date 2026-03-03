@@ -6,377 +6,443 @@
   <title>MilhasUP Monitor — Folder</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+
+  <!-- html2canvas para gerar JPG -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"
+          crossorigin="anonymous"></script>
+
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    /* ══ RESET ══════════════════════════════════════════════════════════════════ */
+    *, *::before, *::after {
+      box-sizing: border-box; margin: 0; padding: 0;
+      /* Garante que cores e backgrounds apareçam na impressão */
+      -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+    }
+
     :root {
       --blue:   #1e40af;
       --blue2:  #3b82f6;
-      --light:  #eff6ff;
+      --blue3:  #93c5fd;
       --dark:   #0f172a;
-      --muted:  #475569;
-      --green:  #16a34a;
+      --dark2:  #1e3a8a;
+      --muted:  #94a3b8;
+      --green:  #34d399;
       --border: #e2e8f0;
-    }
-    body { font-family: 'Inter', system-ui, sans-serif; background: #f1f5f9; }
+      --text:   #1e293b;
 
-    /* ── Print setup ── */
-    @media print {
-      body { background: #fff; }
-      .no-print { display: none !important; }
-      .page { box-shadow: none !important; margin: 0 !important; border-radius: 0 !important; }
+      /* A4 = 794×1123px @96dpi */
+      --page-w: 794px;
+      --page-h: 1123px;
     }
-    @page { size: A4; margin: 0; }
 
-    /* ── Print button ── */
-    .no-print {
-      position: fixed; top: 1.5rem; right: 1.5rem; z-index: 999;
-      display: flex; gap: .6rem;
+    body {
+      font-family: 'Inter', Arial, sans-serif;
+      background: #e2e8f0;
+      display: flex; flex-direction: column; align-items: center;
+      padding: 1.5rem 1rem 3rem;
     }
-    .btn-print {
-      background: var(--blue2); color: #fff; border: none;
-      padding: .7rem 1.4rem; border-radius: 8px; font-weight: 700;
-      font-size: .9rem; cursor: pointer; box-shadow: 0 4px 12px rgba(59,130,246,.4);
-    }
-    .btn-print:hover { background: var(--blue); }
 
-    /* ── Page ── */
+    /* ══ BARRA DE FERRAMENTAS (não imprime) ══════════════════════════════════════ */
+    .toolbar {
+      display: flex; gap: .8rem; margin-bottom: 1.2rem;
+      position: sticky; top: .8rem; z-index: 100;
+    }
+    @media print { .toolbar { display: none !important; } }
+
+    .tbtn {
+      border: none; border-radius: 8px; padding: .65rem 1.3rem;
+      font-weight: 700; font-size: .88rem; cursor: pointer;
+      display: flex; align-items: center; gap: .5rem;
+      transition: opacity .15s;
+    }
+    .tbtn:hover { opacity: .85; }
+    .tbtn-print { background: #1e40af; color: #fff; }
+    .tbtn-jpg   { background: #16a34a; color: #fff; }
+
+    /* ══ PÁGINA A4 ═══════════════════════════════════════════════════════════════ */
     .page {
-      width: 210mm; min-height: 297mm;
-      margin: 2rem auto;
+      width: var(--page-w);
+      height: var(--page-h);
       background: #fff;
-      box-shadow: 0 8px 48px rgba(0,0,0,.15);
-      border-radius: 8px;
-      overflow: hidden;
       display: flex; flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 12px 56px rgba(0,0,0,.25);
+      border-radius: 4px;
+      position: relative;
     }
 
-    /* ── Header ── */
-    .header {
-      background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #1e40af 100%);
-      color: #fff; padding: 2.5rem 2.5rem 2rem;
-      position: relative; overflow: hidden;
-    }
-    .header::before {
-      content: ''; position: absolute; top: -40px; right: -40px;
-      width: 200px; height: 200px;
-      background: radial-gradient(circle, rgba(59,130,246,.3) 0%, transparent 70%);
-      border-radius: 50%;
-    }
-    .header::after {
-      content: ''; position: absolute; bottom: -20px; left: 40%;
-      width: 120px; height: 120px;
-      background: radial-gradient(circle, rgba(139,92,246,.2) 0%, transparent 70%);
-      border-radius: 50%;
-    }
-    .logo-row { display: flex; align-items: center; gap: .8rem; margin-bottom: 1.5rem; }
-    .logo-icon { font-size: 2.2rem; }
-    .logo-text { font-size: 1.5rem; font-weight: 900; letter-spacing: -.02em; }
-    .logo-text span { color: #93c5fd; }
-    .logo-sub { font-size: .72rem; color: #94a3b8; letter-spacing: 1px; text-transform: uppercase;
-      margin-top: .1rem; }
-
-    .header-headline {
-      font-size: 2rem; font-weight: 900; line-height: 1.15;
-      letter-spacing: -.03em; margin-bottom: .8rem; position: relative; z-index: 1;
-    }
-    .header-headline .hl { color: #93c5fd; }
-    .header-sub {
-      font-size: .95rem; color: #cbd5e1; line-height: 1.6;
-      max-width: 420px; position: relative; z-index: 1;
-    }
-    .header-badges { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.3rem; position: relative; z-index: 1; }
-    .hbadge {
-      background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2);
-      border-radius: 50px; padding: .25rem .75rem; font-size: .72rem; font-weight: 600;
-      color: #e0f2fe;
+    @media print {
+      body { background: #fff; padding: 0; margin: 0; display: block; }
+      .page {
+        width: 210mm; height: 297mm;
+        box-shadow: none; border-radius: 0;
+        page-break-after: always;
+        margin: 0; position: static;
+      }
+      @page { size: A4; margin: 0; }
     }
 
-    /* ── Mock terminal ── */
-    .terminal {
-      background: #0d1117; border-radius: 10px;
-      margin: 1.5rem 2.5rem; border: 1px solid rgba(255,255,255,.06);
-      box-shadow: 0 8px 24px rgba(0,0,0,.3);
+    /* ══ HEADER ═════════════════════════════════════════════════════════════════ */
+    .hd {
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 55%, #1e40af 100%);
+      padding: 22px 28px 18px;
+      flex-shrink: 0; position: relative; overflow: hidden;
+    }
+    /* decorative circles */
+    .hd::before, .hd::after {
+      content: ''; position: absolute; border-radius: 50%; pointer-events: none;
+    }
+    .hd::before { width: 180px; height: 180px; right: -30px; top: -50px;
+      background: radial-gradient(circle, rgba(59,130,246,.25) 0%, transparent 70%); }
+    .hd::after  { width: 100px; height: 100px; left: 45%; bottom: -20px;
+      background: radial-gradient(circle, rgba(139,92,246,.2) 0%, transparent 70%); }
+
+    .logo-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .logo-icon { font-size: 1.8rem; }
+    .logo-text { font-size: 1.25rem; font-weight: 900; color: #fff; letter-spacing: -.02em; }
+    .logo-text em { color: #93c5fd; font-style: normal; }
+    .logo-sub  { font-size: .62rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-top: 1px; }
+
+    .hd-hl { font-size: 1.55rem; font-weight: 900; line-height: 1.15; color: #fff;
+      letter-spacing: -.03em; margin-bottom: 8px; position: relative; z-index: 1; }
+    .hd-hl .acc { color: #93c5fd; }
+    .hd-sub { font-size: .8rem; color: #cbd5e1; line-height: 1.55;
+      max-width: 500px; position: relative; z-index: 1; margin-bottom: 11px; }
+    .hd-badges { display: flex; flex-wrap: wrap; gap: 5px; position: relative; z-index: 1; }
+    .hdb {
+      background: rgba(255,255,255,.11); border: 1px solid rgba(255,255,255,.22);
+      border-radius: 50px; padding: 3px 10px; font-size: .64rem; font-weight: 700;
+      color: #e0f2fe; letter-spacing: .2px;
+    }
+
+    /* ══ TERMINAL ════════════════════════════════════════════════════════════════ */
+    .term-wrap { padding: 10px 28px; flex-shrink: 0; }
+    .term {
+      background: #0d1117;
+      border-radius: 8px; overflow: hidden;
+      border: 1px solid rgba(255,255,255,.06);
+      box-shadow: 0 4px 16px rgba(0,0,0,.3);
     }
     .term-bar {
-      background: #161b22; padding: .5rem .8rem; border-radius: 10px 10px 0 0;
-      display: flex; align-items: center; gap: .4rem; border-bottom: 1px solid #21262d;
+      background: #161b22; padding: 6px 10px;
+      display: flex; align-items: center; gap: 5px;
+      border-bottom: 1px solid #21262d;
     }
-    .tdot { width: 10px; height: 10px; border-radius: 50%; }
-    .term-title { color: #8b949e; font-size: .7rem; margin-left: .4rem;
-      font-family: 'Courier New', monospace; }
+    .tdot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+    .term-lbl { color: #8b949e; font-size: .62rem; margin-left: 4px; font-family: 'Courier New', monospace; }
     .term-body {
-      padding: .9rem 1rem;
+      padding: 9px 12px;
       font-family: 'Courier New', monospace;
-      font-size: .72rem; line-height: 1.9; color: #e6edf3;
+      font-size: .67rem; line-height: 1.9; color: #e6edf3;
     }
-    .tok { color: #8b949e; }
-    .tgreen { color: #3fb950; }
-    .tblue  { color: #58a6ff; }
-    .tyellow{ color: #d29922; }
-    .tpurple{ color: #bc8cff; font-weight: 700; }
+    .t0 { color: #8b949e; } .t1 { color: #3fb950; } .t2 { color: #58a6ff; }
+    .t3 { color: #d29922; } .t4 { color: #bc8cff; font-weight: 700; }
 
-    /* ── Body content ── */
-    .body-content { padding: 1.8rem 2.5rem; flex: 1; }
+    /* ══ CORPO ═══════════════════════════════════════════════════════════════════ */
+    .body { padding: 12px 28px 0; flex: 1; display: flex; flex-direction: column; }
 
-    /* Features grid */
-    .features-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; margin-bottom: 1.8rem; }
+    /* ─ Diferenciais ─ */
+    .sec-title {
+      font-size: .65rem; font-weight: 800; text-transform: uppercase;
+      letter-spacing: 1px; color: #1e40af; margin-bottom: 8px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .sec-title::after { content: ''; flex: 1; height: 1px; background: #e2e8f0; }
+
+    .feat-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7px; margin-bottom: 11px; }
     .feat {
-      display: flex; gap: .7rem; align-items: flex-start;
-      background: #f8fafc; border: 1px solid var(--border); border-radius: 10px;
-      padding: .9rem;
+      display: flex; gap: 7px; align-items: flex-start;
+      background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
+      padding: 9px 10px;
     }
-    .feat-icon { font-size: 1.3rem; flex-shrink: 0; margin-top: .05rem; }
-    .feat h4 { font-size: .85rem; font-weight: 700; color: var(--dark); margin-bottom: .2rem; }
-    .feat p { font-size: .75rem; color: var(--muted); line-height: 1.5; }
+    .feat-ico { font-size: 1.1rem; flex-shrink: 0; line-height: 1; }
+    .feat h4 { font-size: .72rem; font-weight: 700; color: #0f172a; margin-bottom: 3px; }
+    .feat p  { font-size: .63rem; color: #64748b; line-height: 1.45; }
 
-    /* Programs row */
-    .programs-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .7rem; margin-bottom: 1.8rem; }
+    /* ─ Programas ─ */
+    .prog-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7px; margin-bottom: 11px; }
     .prog {
-      text-align: center; padding: .8rem .5rem;
-      border-radius: 10px; border: 2px solid;
-      background: #fafafa;
+      text-align: center; padding: 9px 6px; border-radius: 8px; border: 2px solid;
     }
-    .prog.latam { border-color: #fca5a5; background: #fff5f5; }
+    .prog.latam  { border-color: #fca5a5; background: #fff5f5; }
     .prog.smiles { border-color: #fde68a; background: #fffbeb; }
     .prog.azul   { border-color: #bfdbfe; background: #eff6ff; }
-    .prog-emoji  { font-size: 1.4rem; margin-bottom: .3rem; }
-    .prog-name   { font-size: .8rem; font-weight: 800; color: var(--dark); }
-    .prog-desc   { font-size: .68rem; color: var(--muted); margin-top: .2rem; }
+    .prog-em  { font-size: 1.2rem; }
+    .prog-nm  { font-size: .72rem; font-weight: 800; color: #0f172a; margin-top: 3px; }
+    .prog-ds  { font-size: .6rem; color: #64748b; margin-top: 2px; }
 
-    /* How it works */
-    .how-section { margin-bottom: 1.8rem; }
-    .how-title { font-size: .85rem; font-weight: 800; color: var(--dark);
-      text-transform: uppercase; letter-spacing: .8px; margin-bottom: .8rem;
-      display: flex; align-items: center; gap: .5rem; }
-    .how-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
-    .how-steps { display: grid; grid-template-columns: repeat(4,1fr); gap: .6rem; }
-    .how-step { text-align: center; }
-    .how-num {
-      width: 32px; height: 32px; border-radius: 50%;
-      background: linear-gradient(135deg, var(--blue2), #7c3aed);
-      color: #fff; font-size: .85rem; font-weight: 800;
-      display: flex; align-items: center; justify-content: center; margin: 0 auto .4rem;
-    }
-    .how-step p { font-size: .72rem; color: var(--muted); line-height: 1.4; }
-    .how-step b { color: var(--dark); }
-
-    /* ── Footer / Pricing ── */
-    .foot {
-      background: linear-gradient(135deg, #0f172a, #1e3a8a);
-      color: #fff; padding: 1.8rem 2.5rem;
-      display: flex; align-items: center; gap: 2rem; flex-wrap: wrap;
-    }
-    .price-box { flex: 1; min-width: 180px; }
-    .price-label { font-size: .7rem; font-weight: 700; text-transform: uppercase;
-      letter-spacing: 1px; color: #94a3b8; margin-bottom: .3rem; }
-    .price-big { font-size: 2.5rem; font-weight: 900; line-height: 1; }
-    .price-big sup { font-size: 1rem; vertical-align: super; }
-    .price-big sub { font-size: .9rem; font-weight: 500; color: #93c5fd; }
-    .price-note { font-size: .72rem; color: #94a3b8; margin-top: .3rem; }
-    .price-includes { flex: 2; min-width: 200px; }
-    .pi-list { list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: .25rem; }
-    .pi-list li { font-size: .73rem; color: #cbd5e1; display: flex; align-items: center; gap: .35rem; }
-    .pi-list li::before { content: '✓'; color: #34d399; font-weight: 700; }
-    .cta-box { text-align: center; min-width: 160px; }
-    .cta-url { font-size: .78rem; color: #93c5fd; word-break: break-all; margin-bottom: .7rem; font-weight: 600; }
-    .cta-btn {
+    /* ─ Como funciona ─ */
+    .steps { display: grid; grid-template-columns: repeat(4,1fr); gap: 7px; margin-bottom: 12px; }
+    .step { text-align: center; }
+    .step-n {
+      width: 28px; height: 28px; border-radius: 50%;
       background: linear-gradient(135deg, #3b82f6, #7c3aed);
-      color: #fff; border: none; padding: .8rem 1.5rem; border-radius: 8px;
-      font-weight: 800; font-size: .88rem; cursor: pointer;
-      box-shadow: 0 4px 16px rgba(59,130,246,.4); white-space: nowrap;
+      color: #fff; font-size: .78rem; font-weight: 800;
+      display: flex; align-items: center; justify-content: center; margin: 0 auto 5px;
     }
-    .cta-note { font-size: .65rem; color: #94a3b8; margin-top: .4rem; }
+    .step p  { font-size: .63rem; color: #64748b; line-height: 1.4; }
+    .step b  { color: #0f172a; }
 
-    /* QR placeholder */
-    .qr-box {
-      width: 70px; height: 70px; background: #fff; border-radius: 8px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: .55rem; color: #475569; text-align: center; line-height: 1.3;
-      font-weight: 700; padding: 4px; flex-shrink: 0;
+    /* ══ RODAPÉ / PRICING ════════════════════════════════════════════════════════ */
+    .foot {
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
+      padding: 16px 28px;
+      display: flex; align-items: center; gap: 20px; flex-wrap: nowrap;
+      flex-shrink: 0; margin-top: auto;
     }
-    .qr-inner { border: 2px solid #1e40af; width: 100%; height: 100%; border-radius: 4px;
-      display: flex; align-items: center; justify-content: center; color: #1e40af; font-size: .6rem; }
+    .price-box { flex-shrink: 0; }
+    .price-lbl { font-size: .6rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 1px; color: #94a3b8; }
+    .price-big { font-size: 2.1rem; font-weight: 900; color: #fff; line-height: 1; }
+    .price-big sup { font-size: .85rem; vertical-align: super; }
+    .price-big sub { font-size: .75rem; font-weight: 500; color: #93c5fd; }
+    .price-note { font-size: .6rem; color: #94a3b8; margin-top: 3px; line-height: 1.4; }
+
+    .pi-list { flex: 1; list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 3px 10px; }
+    .pi-list li {
+      font-size: .64rem; color: #cbd5e1;
+      display: flex; align-items: center; gap: 4px;
+    }
+    .pi-list li::before { content: '✓'; color: #34d399; font-weight: 700; flex-shrink: 0; }
+
+    .qr-area { flex-shrink: 0; text-align: center; }
+    .qr-box {
+      width: 62px; height: 62px; background: #fff; border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 5px;
+    }
+    .qr-inner {
+      width: 100%; height: 100%;
+      border: 2px solid #1e40af; border-radius: 3px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .52rem; color: #1e40af; font-weight: 800;
+      text-align: center; line-height: 1.3;
+    }
+    .qr-url { font-size: .58rem; color: #93c5fd; word-break: break-all; max-width: 90px; font-weight: 600; }
+    .qr-note { font-size: .54rem; color: #94a3b8; margin-top: 3px; }
+
+    /* ══ Responsivo tela pequena ══ */
+    @media(max-width: 860px) {
+      .page { transform-origin: top center; transform: scale(.85); margin-bottom: -9%; }
+    }
+    @media(max-width: 680px) {
+      .page { transform: scale(.65); margin-bottom: -25%; }
+    }
   </style>
 </head>
 <body>
 
-<!-- Botão imprimir (não aparece na impressão) -->
-<div class="no-print">
-  <button class="btn-print" onclick="window.print()">🖨️ Imprimir / Salvar PDF</button>
+<!-- Barra de ferramentas -->
+<div class="toolbar">
+  <button class="tbtn tbtn-print" onclick="window.print()">🖨️ Imprimir / PDF</button>
+  <button class="tbtn tbtn-jpg"   onclick="downloadJPG()">🖼️ Baixar JPG</button>
 </div>
 
-<div class="page">
+<!-- PÁGINA A4 -->
+<div class="page" id="flyer">
 
   <!-- HEADER -->
-  <div class="header">
+  <div class="hd">
     <div class="logo-row">
       <div class="logo-icon">✈</div>
       <div>
-        <div class="logo-text">Milhas<span>UP</span> Monitor</div>
-        <div class="logo-sub">Software de Monitoramento de Milhas</div>
+        <div class="logo-text">Milhas<em>UP</em> Monitor</div>
+        <div class="logo-sub">Software de Monitoramento de Milhas Aéreas</div>
       </div>
     </div>
-
-    <div class="header-headline">
-      Capture ofertas de milhas<br>
-      <span class="hl">antes de todo mundo</span> — automaticamente
+    <div class="hd-hl">
+      Capture ofertas de milhas antes de todo mundo —<br>
+      <span class="acc">automaticamente, 24 horas por dia</span>
     </div>
-    <div class="header-sub">
-      Software para Windows que monitora grupos Telegram de milhas 24 horas por dia
-      e responde automaticamente às melhores ofertas. Sem BOT. Sem autorização do grupo. Sem complicação.
+    <div class="hd-sub">
+      Software Windows que monitora grupos Telegram de milhas e responde automaticamente às melhores ofertas.
+      Sem BOT. Sem autorização do grupo. Sem complicação.
     </div>
-    <div class="header-badges">
-      <span class="hbadge">✅ Sem BOT no grupo</span>
-      <span class="hbadge">✅ Sem autorização do proprietário</span>
-      <span class="hbadge">✅ Monitoramento externo</span>
-      <span class="hbadge">✅ LATAM · SMILES · Azul</span>
-      <span class="hbadge">✅ Resposta em &lt; 2 segundos</span>
-    </div>
-  </div>
-
-  <!-- TERMINAL MOCKUP -->
-  <div class="terminal">
-    <div class="term-bar">
-      <div class="tdot" style="background:#ff5f57"></div>
-      <div class="tdot" style="background:#ffbd2e"></div>
-      <div class="tdot" style="background:#28c840"></div>
-      <span class="term-title">MilhasUP Monitor — em execução em segundo plano</span>
-    </div>
-    <div class="term-body">
-<span class="tok">[09:14:32]</span> <span class="tgreen">▶ Monitor ativo. Observando 4 grupos Telegram...</span>
-<span class="tok">[09:17:45]</span> <span class="tyellow">📩 Oferta detectada: "Balcão Milhas BR"</span>  →  <span class="tblue">LATAM Pass</span>  ·  50.000 milhas  ·  <span class="tpurple">R$ 900,00 (R$18/1k) ✔</span>
-<span class="tok">[09:17:46]</span> <span class="tgreen">✅ RESPOSTA AUTOMÁTICA ENVIADA em 0,9s</span>
-<span class="tok">[09:31:12]</span> <span class="tyellow">📩 Oferta detectada: "Grupo VIP Milhas"</span>     →  <span class="tblue">SMILES</span>      ·  80.000 milhas  ·  <span class="tpurple">R$ 1.440,00 (R$18/1k) ✔</span>
-<span class="tok">[09:31:13]</span> <span class="tgreen">✅ RESPOSTA AUTOMÁTICA ENVIADA em 0,7s</span>
+    <div class="hd-badges">
+      <span class="hdb">✅ Sem BOT no grupo</span>
+      <span class="hdb">✅ Sem autorização do proprietário</span>
+      <span class="hdb">✅ Monitoramento 100% externo</span>
+      <span class="hdb">✅ LATAM · SMILES · Azul</span>
+      <span class="hdb">✅ Resposta em &lt; 2 segundos</span>
     </div>
   </div>
 
-  <!-- BODY -->
-  <div class="body-content">
+  <!-- TERMINAL -->
+  <div class="term-wrap">
+    <div class="term">
+      <div class="term-bar">
+        <div class="tdot" style="background:#ff5f57"></div>
+        <div class="tdot" style="background:#ffbd2e"></div>
+        <div class="tdot" style="background:#28c840"></div>
+        <span class="term-lbl">MilhasUP Monitor — rodando em segundo plano no Windows</span>
+      </div>
+      <div class="term-body">
+<span class="t0">[09:14:32]</span> <span class="t1">▶ Monitor ativo. Observando 4 grupos Telegram...</span>
+<span class="t0">[09:17:45]</span> <span class="t3">📩 Oferta:</span> <span class="t2">LATAM Pass</span> · 50.000 milhas · <span class="t4">R$ 900,00 (R$18/1k) ✔ → RESPOSTA ENVIADA em 0,9s</span>
+<span class="t0">[09:31:12]</span> <span class="t3">📩 Oferta:</span> <span class="t2">SMILES</span>     · 80.000 milhas · <span class="t4">R$ 1.440,00 (R$18/1k) ✔ → RESPOSTA ENVIADA em 0,7s</span>
+<span class="t0">[10:05:48]</span> <span class="t3">📩 Oferta:</span> <span class="t2">Azul</span>       · 35.000 milhas · <span class="t4">R$ 630,00 (R$18/1k) ✔ → RESPOSTA ENVIADA em 1,1s</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- CORPO -->
+  <div class="body">
 
     <!-- Diferenciais -->
-    <div class="features-grid">
+    <div class="sec-title">✦ Por que o MilhasUP Monitor?</div>
+    <div class="feat-grid">
       <div class="feat">
-        <div class="feat-icon">👁️</div>
+        <div class="feat-ico">👁️</div>
         <div>
-          <h4>Monitoramento 100% Externo</h4>
-          <p>Age como um usuário comum lendo o grupo. Nenhum acesso privilegiado. Funciona em qualquer grupo que você já participa.</p>
+          <h4>Monitoramento Externo</h4>
+          <p>Age como usuário comum lendo o grupo. Nenhum acesso especial necessário — funciona em qualquer grupo que você já participa.</p>
         </div>
       </div>
       <div class="feat">
-        <div class="feat-icon">🚫</div>
+        <div class="feat-ico">🚫</div>
         <div>
-          <h4>Sem BOT e Sem Autorização</h4>
-          <p>Não precisa pedir permissão ao dono do grupo. Não precisa adicionar nenhum bot. Plug-and-play total.</p>
+          <h4>Sem BOT · Sem Autorização</h4>
+          <p>Não pede permissão ao dono do grupo. Não adiciona bot. Plug-and-play total, independente e discreto.</p>
         </div>
       </div>
       <div class="feat">
-        <div class="feat-icon">⚡</div>
+        <div class="feat-ico">⚡</div>
         <div>
-          <h4>Resposta em Menos de 2 Segundos</h4>
-          <p>Quando a oferta aparece, o software responde instantaneamente — antes de qualquer concorrente que monitora manualmente.</p>
+          <h4>Resposta em &lt; 2 Segundos</h4>
+          <p>Quando a oferta aparece, o software responde antes de qualquer concorrente que monitora manualmente.</p>
         </div>
       </div>
       <div class="feat">
-        <div class="feat-icon">🔧</div>
+        <div class="feat-ico">🔧</div>
         <div>
-          <h4>Configuração Guiada em 5 Min</h4>
-          <p>Assistente passo-a-passo didático e explicativo. Se você usa WhatsApp, você configura o MilhasUP Monitor.</p>
+          <h4>Config. Guiada em 5 Min</h4>
+          <p>Assistente passo-a-passo didático. Se você usa WhatsApp, você configura o MilhasUP Monitor.</p>
         </div>
       </div>
       <div class="feat">
-        <div class="feat-icon">💻</div>
+        <div class="feat-ico">💻</div>
         <div>
           <h4>Roda em Segundo Plano</h4>
-          <p>Fica no ícone da bandeja do Windows sem atrapalhar. Configure para iniciar automaticamente com o computador.</p>
+          <p>Fica no ícone da bandeja do Windows sem atrapalhar. Inicia automaticamente com o computador.</p>
         </div>
       </div>
       <div class="feat">
-        <div class="feat-icon">🔔</div>
+        <div class="feat-ico">🔔</div>
         <div>
-          <h4>Notificação no Celular</h4>
-          <p>Receba push notification no celular (Android/iOS) a cada resposta automática enviada, em tempo real.</p>
+          <h4>Push no Celular</h4>
+          <p>Notificação em tempo real no Android/iOS a cada resposta automática enviada pelo monitor.</p>
         </div>
       </div>
     </div>
 
     <!-- Programas -->
-    <div class="programs-row">
+    <div class="sec-title">✦ Programas suportados</div>
+    <div class="prog-row">
       <div class="prog latam">
-        <div class="prog-emoji">🔴</div>
-        <div class="prog-name">LATAM Pass</div>
-        <div class="prog-desc">CPF · Milhas · Preço/1k</div>
+        <div class="prog-em">🔴</div>
+        <div class="prog-nm">LATAM Pass</div>
+        <div class="prog-ds">CPF · Milhas · Preço/1k · Limites</div>
       </div>
       <div class="prog smiles">
-        <div class="prog-emoji">🟡</div>
-        <div class="prog-name">SMILES</div>
-        <div class="prog-desc">Com ou sem liminar</div>
+        <div class="prog-em">🟡</div>
+        <div class="prog-nm">SMILES</div>
+        <div class="prog-ds">Com ou sem aceite de liminar</div>
       </div>
       <div class="prog azul">
-        <div class="prog-emoji">🔵</div>
-        <div class="prog-name">Azul Fidelidade</div>
-        <div class="prog-desc">Critérios independentes</div>
+        <div class="prog-em">🔵</div>
+        <div class="prog-nm">Azul Fidelidade</div>
+        <div class="prog-ds">Critérios independentes por CPF</div>
       </div>
     </div>
 
     <!-- Como funciona -->
-    <div class="how-section">
-      <div class="how-title">Como funciona</div>
-      <div class="how-steps">
-        <div class="how-step">
-          <div class="how-num">1</div>
-          <p><b>Instale</b><br>Baixe e instale o app Windows. Processo automático.</p>
-        </div>
-        <div class="how-step">
-          <div class="how-num">2</div>
-          <p><b>Configure</b><br>Assistente guiado solicita suas credenciais Telegram.</p>
-        </div>
-        <div class="how-step">
-          <div class="how-num">3</div>
-          <p><b>Defina critérios</b><br>Escolha grupos, programas, preços e sua mensagem.</p>
-        </div>
-        <div class="how-step">
-          <div class="how-num">4</div>
-          <p><b>Relaxe e lucre</b><br>O monitor trabalha 24h. Você recebe notificação a cada resposta.</p>
-        </div>
+    <div class="sec-title">✦ Como funciona</div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-n">1</div>
+        <p><b>Instale</b><br>Baixe e instale o app Windows. Processo automático e rápido.</p>
+      </div>
+      <div class="step">
+        <div class="step-n">2</div>
+        <p><b>Configure</b><br>Assistente solicita suas credenciais gratuitas do Telegram.</p>
+      </div>
+      <div class="step">
+        <div class="step-n">3</div>
+        <p><b>Defina critérios</b><br>Escolha grupos, programas, preços e sua mensagem.</p>
+      </div>
+      <div class="step">
+        <div class="step-n">4</div>
+        <p><b>Relaxe e lucre</b><br>Monitor 24h. Notificação a cada resposta automática.</p>
       </div>
     </div>
 
-  </div>
+  </div><!-- /body -->
 
-  <!-- FOOTER / PRICING -->
+  <!-- RODAPÉ / PRICING -->
   <div class="foot">
     <div class="price-box">
-      <div class="price-label">Assinatura Mensal</div>
+      <div class="price-lbl">Assinatura Mensal</div>
       <div class="price-big"><sup>R$</sup>19,90<sub>/mês</sub></div>
-      <div class="price-note">Sem fidelidade · Cancele quando quiser<br>Acesso imediato após confirmação</div>
+      <div class="price-note">Sem fidelidade<br>Cancele quando quiser<br>Acesso imediato</div>
     </div>
 
-    <div class="price-includes">
-      <ul class="pi-list">
-        <li>Monitoramento 24/7 ilimitado</li>
-        <li>LATAM + SMILES + Azul</li>
-        <li>Resposta automática em &lt;2s</li>
-        <li>Grupos ilimitados</li>
-        <li>Notificação no celular</li>
-        <li>Assistente de configuração</li>
-        <li>Atualizações incluídas</li>
-        <li>Suporte via Telegram</li>
-      </ul>
-    </div>
+    <ul class="pi-list">
+      <li>Monitoramento 24/7 ilimitado</li>
+      <li>LATAM + SMILES + Azul</li>
+      <li>Resposta automática em &lt;2s</li>
+      <li>Grupos ilimitados</li>
+      <li>Notificação no celular</li>
+      <li>Assistente de configuração</li>
+      <li>Atualizações incluídas</li>
+      <li>Suporte via Telegram</li>
+    </ul>
 
-    <div class="cta-box">
+    <div class="qr-area">
       <div class="qr-box">
-        <div class="qr-inner">QR CODE<br>LINK</div>
+        <div class="qr-inner">QR<br>CODE</div>
       </div>
-      <div style="margin-top:.5rem;">
-        <div class="cta-url">{{ cakto_url }}</div>
-        <div class="cta-note">🔒 Pagamento seguro via Cakto</div>
-      </div>
+      <div class="qr-url">{{ cakto_url }}</div>
+      <div class="qr-note">🔒 Pagamento seguro · Cakto</div>
     </div>
   </div>
 
-</div>
+</div><!-- /page -->
 
+<script>
+async function downloadJPG() {
+  const btn = document.querySelector('.tbtn-jpg');
+  btn.textContent = '⏳ Gerando imagem...';
+  btn.disabled = true;
+
+  try {
+    const page = document.getElementById('flyer');
+    const canvas = await html2canvas(page, {
+      scale: 2,                  // 2× → alta resolução
+      useCORS: true,
+      allowTaint: false,
+      backgroundColor: '#ffffff',
+      width:  page.offsetWidth,
+      height: page.offsetHeight,
+      logging: false,
+      onclone: (cloned) => {
+        // garante que no clone a toolbar não aparece
+        const tb = cloned.querySelector('.toolbar');
+        if (tb) tb.style.display = 'none';
+      }
+    });
+
+    const link = document.createElement('a');
+    link.download = 'MilhasUP_Monitor_Folder.jpg';
+    link.href = canvas.toDataURL('image/jpeg', 0.93);
+    link.click();
+  } catch(e) {
+    alert('Erro ao gerar JPG: ' + e.message);
+  } finally {
+    btn.textContent = '🖼️ Baixar JPG';
+    btn.disabled = false;
+  }
+}
+</script>
 </body>
 </html>
