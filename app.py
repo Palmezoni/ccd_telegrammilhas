@@ -230,6 +230,9 @@ class MilhasUpApp(ctk.CTk):
         self._setup_tray()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self.after(200, self._poll)
+        # Onboarding: abre wizard se ainda não configurado
+        if self._needs_onboarding():
+            self.after(400, self._show_onboarding_wizard)
 
     # ── Ícone ─────────────────────────────────────────────────────────────────
 
@@ -361,6 +364,435 @@ class MilhasUpApp(ctk.CTk):
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self.after(200, self._poll)
 
+    # ── Onboarding ────────────────────────────────────────────────────────────
+
+    def _needs_onboarding(self) -> bool:
+        """Retorna True se .env não tiver TG_API_ID configurado."""
+        return not read_env().get("TG_API_ID", "").strip()
+
+    def _show_onboarding_wizard(self):
+        """Wizard de configuração inicial — aparece quando o .env está vazio."""
+        wiz = ctk.CTkToplevel(self)
+        wiz.title("✈  Configuração Inicial — Milhas UP")
+        wiz.geometry("660x700")
+        wiz.minsize(560, 580)
+        wiz.resizable(True, True)
+        wiz.transient(self)
+        wiz.grab_set()
+        wiz.focus_force()
+
+        # ── Variáveis de dados ────────────────────────────────────────────────
+        env = read_env()
+        def _sv(key, default=""):
+            v = ctk.StringVar(value=env.get(key, default))
+            return v
+        def _bv(key, default=False):
+            v = ctk.BooleanVar(value=(env.get(key, "1" if default else "0") == "1"))
+            return v
+
+        V: dict = {
+            "TG_API_ID":              _sv("TG_API_ID"),
+            "TG_API_HASH":            _sv("TG_API_HASH"),
+            "TG_PHONE":               _sv("TG_PHONE"),
+            "LATAM_THRESHOLD_PER_CPF": _sv("LATAM_THRESHOLD_PER_CPF", "50000"),
+            "LATAM_REPLY":            _sv("LATAM_REPLY",  "25,00"),
+            "LATAM_MAX_MILES":        _sv("LATAM_MAX_MILES",  "194000"),
+            "SMILES_THRESHOLD_PER_CPF": _sv("SMILES_THRESHOLD_PER_CPF", "27000"),
+            "SMILES_REPLY":           _sv("SMILES_REPLY", "16,00"),
+            "SMILES_MAX_MILES":       _sv("SMILES_MAX_MILES", "675000"),
+            "AZUL_THRESHOLD_PER_CPF": _sv("AZUL_THRESHOLD_PER_CPF", "30000"),
+            "AZUL_REPLY":             _sv("AZUL_REPLY",   "18,00"),
+            "AZUL_MAX_MILES":         _sv("AZUL_MAX_MILES", "200000"),
+            "NTFY_TOPIC":             _sv("NTFY_TOPIC"),
+            "SEND_DELAY_SECONDS":     _sv("SEND_DELAY_SECONDS", "3"),
+            "ACEITA_LIMINAR":         _bv("ACEITA_LIMINAR", True),
+            "DRY_RUN":                _bv("DRY_RUN", False),
+            "_targets_box":           None,  # textbox, atribuído no build_step_2
+        }
+
+        step_state = [0]
+
+        TITLES = [
+            ("🎉  Bem-vindo ao Milhas UP!",           ""),
+            ("📱  Credenciais do Telegram",            "Passo 1 de 4"),
+            ("📡  Grupos para Monitorar",              "Passo 2 de 4"),
+            ("✈  Regras de Compra por Programa",      "Passo 3 de 4"),
+            ("⚙  Preferências e Notificações",        "Passo 4 de 4"),
+            ("✅  Configuração Concluída!",            ""),
+        ]
+
+        # ── Layout ────────────────────────────────────────────────────────────
+        hdr = ctk.CTkFrame(wiz, height=62, corner_radius=0, fg_color=C_DARK)
+        hdr.pack(fill="x")
+        hdr.pack_propagate(False)
+        lbl_title = ctk.CTkLabel(hdr, text="", font=ctk.CTkFont(size=15, weight="bold"))
+        lbl_title.pack(pady=(10, 0))
+        lbl_sub = ctk.CTkLabel(hdr, text="", font=ctk.CTkFont(size=10), text_color=C_GRAY)
+        lbl_sub.pack()
+
+        content = ctk.CTkScrollableFrame(wiz, fg_color="transparent")
+        content.pack(fill="both", expand=True, padx=24, pady=10)
+
+        ftr = ctk.CTkFrame(wiz, height=68, corner_radius=0, fg_color=C_DARK)
+        ftr.pack(fill="x")
+        ftr.pack_propagate(False)
+        err_lbl = ctk.CTkLabel(ftr, text="", font=ctk.CTkFont(size=11), text_color=C_RED)
+        err_lbl.pack(pady=(6, 0))
+        btn_row = ctk.CTkFrame(ftr, fg_color="transparent")
+        btn_row.pack(fill="x", padx=20, pady=(2, 10))
+        btn_back = ctk.CTkButton(btn_row, text="← Voltar", width=110, height=36,
+                                  fg_color="gray40", hover_color="gray50")
+        btn_back.pack(side="left")
+        btn_next = ctk.CTkButton(btn_row, text="Próximo →", width=150, height=36,
+                                  fg_color="#27ae60", hover_color="#2ecc71",
+                                  font=ctk.CTkFont(size=13, weight="bold"))
+        btn_next.pack(side="right")
+
+        # ── Helpers de widget ─────────────────────────────────────────────────
+        def _h1(parent, text):
+            ctk.CTkLabel(parent, text=text, anchor="w", wraplength=580,
+                         font=ctk.CTkFont(size=13, weight="bold")).pack(fill="x", pady=(4, 2))
+
+        def _txt(parent, text, color=None):
+            kw = {"text": text, "anchor": "w", "wraplength": 580,
+                  "justify": "left", "font": ctk.CTkFont(size=11)}
+            if color:
+                kw["text_color"] = color
+            ctk.CTkLabel(parent, **kw).pack(fill="x", pady=(2, 0))
+
+        def _field(parent, label, var, placeholder="", password=False, hint=""):
+            ctk.CTkLabel(parent, text=label, anchor="w",
+                         font=ctk.CTkFont(size=12, weight="bold")).pack(fill="x", pady=(10, 0))
+            if hint:
+                ctk.CTkLabel(parent, text=hint, anchor="w", wraplength=580,
+                             font=ctk.CTkFont(size=10), text_color=C_GRAY).pack(fill="x")
+            e = ctk.CTkEntry(parent, textvariable=var, placeholder_text=placeholder,
+                             show="*" if password else "", height=36)
+            e.pack(fill="x", pady=(3, 0))
+            return e
+
+        def _sep(parent, pady=6):
+            ctk.CTkFrame(parent, height=1, fg_color="gray30").pack(fill="x", pady=pady)
+
+        def _prog_3cols(parent, label, key_prefix):
+            _sep(parent, pady=4)
+            ctk.CTkLabel(parent, text=label, anchor="w",
+                         font=ctk.CTkFont(size=12, weight="bold")).pack(fill="x", pady=(4, 4))
+            row = ctk.CTkFrame(parent, fg_color="transparent")
+            row.pack(fill="x")
+            row.grid_columnconfigure((0, 1, 2), weight=1)
+            specs = [
+                ("Mínimo/CPF (milhas)",   f"{key_prefix}_THRESHOLD_PER_CPF",
+                 "Ofertas abaixo desse valor por CPF são ignoradas"),
+                ("Preço de Resposta (R$)", f"{key_prefix}_REPLY",
+                 "Quanto você paga por lote de milhas"),
+                ("Máximo total (milhas)",  f"{key_prefix}_MAX_MILES",
+                 "Ignora oferta se total de milhas for maior"),
+            ]
+            for col, (lbl, key, hint) in enumerate(specs):
+                f = ctk.CTkFrame(row, corner_radius=8)
+                f.grid(row=0, column=col, padx=3, pady=3, sticky="nsew")
+                ctk.CTkLabel(f, text=lbl, wraplength=155, justify="left",
+                             font=ctk.CTkFont(size=10), text_color=C_GRAY).pack(padx=8, pady=(6,1), anchor="w")
+                ctk.CTkEntry(f, textvariable=V[key], height=32).pack(padx=8, pady=(0,4), fill="x")
+                ctk.CTkLabel(f, text=hint, wraplength=155, justify="left",
+                             font=ctk.CTkFont(size=9), text_color="gray50").pack(padx=8, pady=(0,6), anchor="w")
+
+        # ── Builders de passo ─────────────────────────────────────────────────
+        def build_0():
+            _h1(content, "🎉  Bem-vindo ao Milhas UP Telegram Monitor!")
+            _txt(content,
+                 "Este assistente vai te guiar pela configuração inicial. "
+                 "Em poucos passos o monitor estará pronto para capturar as melhores ofertas de milhas do Telegram!")
+            ctk.CTkFrame(content, height=10, fg_color="transparent").pack()
+            for icon, title, desc in [
+                ("📱", "Credenciais do Telegram",
+                 "API ID, API Hash e número de telefone — necessários para conectar ao Telegram"),
+                ("📡", "Grupos para Monitorar",
+                 "Os grupos do Telegram que o monitor vai acompanhar em tempo real"),
+                ("✈", "Regras de Compra",
+                 "Limites mínimos por CPF e preços de resposta para LATAM, SMILES e Azul"),
+                ("⚙", "Preferências",
+                 "Notificações no celular (ntfy), filtros e configurações avançadas"),
+            ]:
+                r = ctk.CTkFrame(content, corner_radius=10)
+                r.pack(fill="x", pady=3)
+                ctk.CTkLabel(r, text=icon, font=ctk.CTkFont(size=22), width=44
+                             ).pack(side="left", padx=10, pady=10)
+                c = ctk.CTkFrame(r, fg_color="transparent")
+                c.pack(side="left", fill="both", expand=True, pady=8)
+                ctk.CTkLabel(c, text=title, anchor="w",
+                             font=ctk.CTkFont(size=12, weight="bold")).pack(anchor="w")
+                ctk.CTkLabel(c, text=desc, anchor="w", wraplength=490,
+                             font=ctk.CTkFont(size=10), text_color=C_GRAY).pack(anchor="w")
+            ctk.CTkFrame(content, height=6, fg_color="transparent").pack()
+            _txt(content,
+                 "💡 Todas as configurações podem ser editadas depois, na aba Configuração.",
+                 color=C_BLUE)
+
+        def build_1():
+            _h1(content, "Como obter suas credenciais do Telegram:")
+            info = ctk.CTkFrame(content, corner_radius=8, fg_color="#162032")
+            info.pack(fill="x", pady=(4, 10))
+            ctk.CTkLabel(info,
+                text="  1. Abra  https://my.telegram.org  no seu navegador\n"
+                     "  2. Faça login com o mesmo número de telefone que usa no Telegram\n"
+                     "  3. Clique em  'API development tools'\n"
+                     "  4. Crie um app — coloque qualquer nome (ex: MilhasUP)\n"
+                     "  5. Copie o  App api_id  (número) e o  App api_hash  (código longo)",
+                justify="left", font=ctk.CTkFont(size=11, family="Consolas"),
+                text_color="#79c0ff").pack(padx=14, pady=10, anchor="w")
+
+            _field(content, "API ID", V["TG_API_ID"],
+                   placeholder="Ex: 12345678",
+                   hint="Número inteiro. Obtido em my.telegram.org → API development tools")
+            _field(content, "API Hash", V["TG_API_HASH"],
+                   placeholder="Ex: a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6",
+                   password=True,
+                   hint="Código hexadecimal longo. Trate como senha — nunca compartilhe!")
+            _field(content, "Número de Telefone", V["TG_PHONE"],
+                   placeholder="Ex: +5534999768872",
+                   hint="Com código do país (+55 para Brasil). Deve ser o mesmo número da sua conta Telegram.")
+            ctk.CTkFrame(content, height=6, fg_color="transparent").pack()
+            _txt(content,
+                 "⚠  Na primeira vez que o monitor iniciar, o Telegram vai enviar um código de "
+                 "verificação para o seu app do Telegram. Uma janelinha vai abrir para você digitar o código.",
+                 color=C_ORANGE)
+
+        def build_2():
+            _h1(content, "Quais grupos o monitor deve acompanhar?")
+            _txt(content,
+                 "Cole abaixo os nomes EXATOS dos grupos do Telegram — um grupo por linha. "
+                 "O nome deve ser idêntico ao que aparece no cabeçalho do grupo no app do Telegram "
+                 "(incluindo maiúsculas, acentos e espaços).")
+            ex = ctk.CTkFrame(content, corner_radius=8, fg_color="#162032")
+            ex.pack(fill="x", pady=(8, 4))
+            ctk.CTkLabel(ex,
+                text="  Exemplos (use os nomes reais dos seus grupos):\n"
+                     "  Milhas e Pontos Brasil\n"
+                     "  Clube de Milhas LATAM\n"
+                     "  Grupo Smiles Promoções",
+                justify="left", font=ctk.CTkFont(size=11, family="Consolas"),
+                text_color="#79c0ff").pack(padx=14, pady=8, anchor="w")
+            ctk.CTkLabel(content, text="Grupos para monitorar (um por linha):",
+                         anchor="w", font=ctk.CTkFont(size=12, weight="bold")).pack(fill="x", pady=(8, 3))
+            V["_targets_box"] = ctk.CTkTextbox(
+                content, height=170, corner_radius=6,
+                font=ctk.CTkFont(family="Consolas", size=11))
+            V["_targets_box"].pack(fill="x")
+            existing = read_env().get("TG_TARGETS", "")
+            if existing:
+                items = [x.strip() for x in existing.split(",") if x.strip()]
+                V["_targets_box"].insert("1.0", "\n".join(items))
+            _txt(content,
+                 "💡 O monitor detecta automaticamente ofertas de LATAM, SMILES e Azul — "
+                 "não é necessário configurar palavras-chave.", color=C_BLUE)
+
+        def build_3():
+            _h1(content, "Configure os limites de compra para cada programa")
+            _txt(content,
+                 "O monitor verifica cada oferta e responde automaticamente quando ela atinge "
+                 "seus critérios. Configure abaixo os valores mínimos por CPF e o preço que você quer pagar.",
+                 color=C_GRAY)
+            _prog_3cols(content, "✈  LATAM Pass", "LATAM")
+            _prog_3cols(content, "🌟  SMILES",     "SMILES")
+            _prog_3cols(content, "🔵  Azul Fidelidade", "AZUL")
+            ctk.CTkFrame(content, height=6, fg_color="transparent").pack()
+            _txt(content,
+                 "💡 Você pode ajustar esses valores a qualquer momento na aba Configuração.",
+                 color=C_BLUE)
+
+        def build_4():
+            _h1(content, "Notificações no celular com ntfy.sh")
+            ntfy_info = ctk.CTkFrame(content, corner_radius=8, fg_color="#162032")
+            ntfy_info.pack(fill="x", pady=(4, 10))
+            ctk.CTkLabel(ntfy_info,
+                text="  Como configurar notificações ntfy (opcional):\n"
+                     "  1. Instale o app 'ntfy' no seu celular (Android ou iOS)\n"
+                     "  2. Acesse https://ntfy.sh e crie um tópico (ex: milhas-meu-nome-123)\n"
+                     "  3. Cole o nome do tópico abaixo — o monitor vai te notificar a cada oferta!",
+                justify="left", font=ctk.CTkFont(size=11, family="Consolas"),
+                text_color="#79c0ff").pack(padx=14, pady=10, anchor="w")
+            _field(content, "Tópico ntfy.sh (opcional)", V["NTFY_TOPIC"],
+                   placeholder="Ex: milhas-joao-secreto-2026",
+                   hint="Deixe em branco para desativar notificações no celular.")
+
+            _sep(content)
+            _h1(content, "⚙  Configurações avançadas")
+            _field(content, "Delay entre envios (segundos)", V["SEND_DELAY_SECONDS"],
+                   placeholder="3",
+                   hint="Tempo de espera entre respostas para evitar flood no Telegram. Recomendado: 3 segundos.")
+
+            _sep(content)
+            _h1(content, "🎛  Filtros de Oferta")
+            for lbl, key, title_hint, body_hint in [
+                ("Aceita Liminar", "ACEITA_LIMINAR",
+                 "O que é 'liminar'?",
+                 "Algumas ofertas de milhas envolvem disputas judiciais chamadas 'liminares'. "
+                 "Se ATIVADO, o monitor responde essas ofertas. Se DESATIVADO, as ofertas com a "
+                 "palavra 'liminar' são ignoradas. Ative apenas se você aceitar esse tipo de oferta."),
+                ("Modo Teste (Dry-run)", "DRY_RUN",
+                 "O que é Dry-run?",
+                 "Se ATIVADO, o monitor analisa as ofertas normalmente mas NÃO envia nenhuma resposta. "
+                 "Útil para testar se as configurações estão certas sem gastar nada. "
+                 "Desative quando estiver pronto para usar de verdade."),
+            ]:
+                r = ctk.CTkFrame(content, corner_radius=10)
+                r.pack(fill="x", pady=5)
+                col = ctk.CTkFrame(r, fg_color="transparent")
+                col.pack(side="left", fill="both", expand=True, padx=12, pady=8)
+                ctk.CTkLabel(col, text=lbl, anchor="w",
+                             font=ctk.CTkFont(size=12, weight="bold")).pack(anchor="w")
+                ctk.CTkLabel(col, text=title_hint, anchor="w",
+                             font=ctk.CTkFont(size=10, weight="bold"),
+                             text_color=C_BLUE).pack(anchor="w")
+                ctk.CTkLabel(col, text=body_hint, anchor="w", wraplength=470,
+                             font=ctk.CTkFont(size=10), text_color=C_GRAY).pack(anchor="w")
+                ctk.CTkSwitch(r, text="", variable=V[key], width=50
+                              ).pack(side="right", padx=16, pady=8)
+
+        def build_5():
+            _h1(content, "🎉  Tudo certo! O monitor está configurado.")
+            _txt(content, "Aqui está um resumo do que você configurou:", color=C_GRAY)
+            summary = ctk.CTkFrame(content, corner_radius=10)
+            summary.pack(fill="x", pady=(8, 12))
+            env_now = read_env()
+            rows = [
+                ("📱 Telefone Telegram",    V["TG_PHONE"].get() or env_now.get("TG_PHONE", "—")),
+                ("✈  LATAM mínimo/CPF",     f"{V['LATAM_THRESHOLD_PER_CPF'].get()} milhas"),
+                ("🌟 SMILES mínimo/CPF",     f"{V['SMILES_THRESHOLD_PER_CPF'].get()} milhas"),
+                ("🔵 Azul mínimo/CPF",       f"{V['AZUL_THRESHOLD_PER_CPF'].get()} milhas"),
+                ("🔔 Notificações ntfy",     V["NTFY_TOPIC"].get() or "Desativado"),
+                ("🎛 Aceita Liminar",        "Sim" if V["ACEITA_LIMINAR"].get() else "Não"),
+                ("🧪 Modo Teste (Dry-run)",  "Ativado (não envia)" if V["DRY_RUN"].get() else "Desativado (envio real)"),
+            ]
+            for label, value in rows:
+                r = ctk.CTkFrame(summary, fg_color="transparent")
+                r.pack(fill="x", padx=12, pady=2)
+                ctk.CTkLabel(r, text=label, anchor="w", width=220,
+                             font=ctk.CTkFont(size=11), text_color=C_GRAY).pack(side="left")
+                ctk.CTkLabel(r, text=value, anchor="w",
+                             font=ctk.CTkFont(size=11, weight="bold")).pack(side="left")
+            _sep(content, pady=8)
+            _txt(content,
+                 "⚠  Na primeira vez que iniciar, o Telegram vai enviar um código de verificação "
+                 "para o seu celular. Uma janela vai aparecer para você digitar o código.",
+                 color=C_ORANGE)
+            ctk.CTkFrame(content, height=8, fg_color="transparent").pack()
+            ctk.CTkButton(
+                content, text="▶  Iniciar Monitor Agora", height=46,
+                fg_color="#27ae60", hover_color="#2ecc71",
+                font=ctk.CTkFont(size=14, weight="bold"),
+                command=lambda: (wiz.destroy(), self.after(600, self._start)),
+            ).pack(fill="x")
+            ctk.CTkButton(
+                content, text="Fechar e configurar manualmente depois",
+                height=32, fg_color="transparent", hover_color="gray20",
+                font=ctk.CTkFont(size=10), text_color=C_GRAY,
+                command=wiz.destroy,
+            ).pack(pady=(6, 0))
+
+        BUILDERS = [build_0, build_1, build_2, build_3, build_4, build_5]
+
+        # ── Validação ─────────────────────────────────────────────────────────
+        def validate(n) -> bool:
+            err_lbl.configure(text="")
+            if n == 1:
+                if not V["TG_API_ID"].get().strip():
+                    err_lbl.configure(text="⚠  Preencha o API ID do Telegram")
+                    return False
+                if not V["TG_API_ID"].get().strip().isdigit():
+                    err_lbl.configure(text="⚠  O API ID deve conter apenas números (ex: 12345678)")
+                    return False
+                if not V["TG_API_HASH"].get().strip():
+                    err_lbl.configure(text="⚠  Preencha o API Hash do Telegram")
+                    return False
+                ph = V["TG_PHONE"].get().strip()
+                if not ph:
+                    err_lbl.configure(text="⚠  Preencha o número de telefone")
+                    return False
+                if not ph.startswith("+"):
+                    err_lbl.configure(text="⚠  O telefone deve começar com + (ex: +5511999999999)")
+                    return False
+            if n == 2:
+                tb = V.get("_targets_box")
+                if tb and not tb.get("1.0", "end").strip():
+                    err_lbl.configure(text="⚠  Adicione pelo menos um grupo para monitorar")
+                    return False
+            return True
+
+        # ── Coleta e salva no .env ────────────────────────────────────────────
+        def collect(n):
+            updates: dict = {}
+            if n >= 1:
+                updates["TG_API_ID"]   = V["TG_API_ID"].get().strip()
+                updates["TG_API_HASH"] = V["TG_API_HASH"].get().strip()
+                updates["TG_PHONE"]    = V["TG_PHONE"].get().strip()
+            if n >= 2:
+                tb = V.get("_targets_box")
+                if tb:
+                    raw = tb.get("1.0", "end").strip()
+                    updates["TG_TARGETS"] = ", ".join(
+                        l.strip() for l in raw.splitlines() if l.strip()
+                    )
+            if n >= 3:
+                for prog in ("LATAM", "SMILES", "AZUL"):
+                    for suf in ("THRESHOLD_PER_CPF", "REPLY", "MAX_MILES"):
+                        k = f"{prog}_{suf}"
+                        updates[k] = V[k].get().strip()
+            if n >= 4:
+                updates["NTFY_TOPIC"]         = V["NTFY_TOPIC"].get().strip()
+                updates["SEND_DELAY_SECONDS"] = V["SEND_DELAY_SECONDS"].get().strip() or "3"
+                updates["ACEITA_LIMINAR"]     = "1" if V["ACEITA_LIMINAR"].get() else "0"
+                updates["DRY_RUN"]            = "1" if V["DRY_RUN"].get() else "0"
+            if updates:
+                write_env_keys(updates)
+
+        # ── Navegação ─────────────────────────────────────────────────────────
+        def show_step(n):
+            step_state[0] = n
+            for w in content.winfo_children():
+                w.destroy()
+            t, s = TITLES[n]
+            lbl_title.configure(text=t)
+            lbl_sub.configure(text=s)
+            btn_back.configure(state="disabled" if n == 0 else "normal")
+            if n == 0:
+                btn_next.configure(text="Começar →", width=150)
+            elif n == 5:
+                btn_next.configure(text="Fechar", fg_color="gray40",
+                                   hover_color="gray50", width=110)
+            else:
+                btn_next.configure(text="Próximo →", fg_color="#27ae60",
+                                   hover_color="#2ecc71", width=150)
+            BUILDERS[n]()
+
+        def go_next():
+            n = step_state[0]
+            if n == 5:
+                wiz.destroy()
+                return
+            if not validate(n):
+                return
+            collect(n)
+            show_step(n + 1)
+
+        def go_back():
+            if step_state[0] > 0:
+                show_step(step_state[0] - 1)
+
+        btn_back.configure(command=go_back)
+        btn_next.configure(command=go_next)
+        wiz.bind("<Return>", lambda e: go_next())
+
+        # Centraliza sobre a janela principal
+        self.update_idletasks()
+        x = self.winfo_x() + (self.winfo_width()  - 660) // 2
+        y = self.winfo_y() + (self.winfo_height() - 700) // 2
+        wiz.geometry(f"660x700+{max(0,x)}+{max(0,y)}")
+
+        show_step(0)
+
     # ── UI ────────────────────────────────────────────────────────────────────
 
     def _build_ui(self):
@@ -452,11 +884,12 @@ class MilhasUpApp(ctk.CTk):
         # Stats
         sf = ctk.CTkFrame(p, corner_radius=12)
         sf.pack(fill="x", padx=6, pady=4)
-        sf.grid_columnconfigure((0, 1, 2, 3), weight=1)
+        sf.grid_columnconfigure((0, 1, 2, 3, 4), weight=1)
         self._st_total  = self._stat(sf, "Total Respondidas", "—", 0)
-        self._st_smiles = self._stat(sf, "SMILES",            "—", 1)
-        self._st_latam  = self._stat(sf, "LATAM",             "—", 2)
-        self._st_last   = self._stat(sf, "Última Resposta",   "—", 3)
+        self._st_latam  = self._stat(sf, "LATAM",             "—", 1)
+        self._st_smiles = self._stat(sf, "SMILES",            "—", 2)
+        self._st_azul   = self._stat(sf, "AZUL",              "—", 3)
+        self._st_last   = self._stat(sf, "Última Resposta",   "—", 4)
 
         # Atividade recente
         ctk.CTkLabel(
@@ -596,6 +1029,11 @@ class MilhasUpApp(ctk.CTk):
         field("Mínimo por CPF (milhas)", "SMILES_THRESHOLD_PER_CPF", "Ex: 27000")
         field("Preço de Resposta (R$)",  "SMILES_REPLY",              "Ex: 16,00")
         field("Máximo total (milhas)",   "SMILES_MAX_MILES",          "Ex: 675000")
+
+        section("Regras Azul Fidelidade", "🔵")
+        field("Mínimo por CPF (milhas)", "AZUL_THRESHOLD_PER_CPF", "Ex: 30000")
+        field("Preço de Resposta (R$)",  "AZUL_REPLY",              "Ex: 18,00")
+        field("Máximo total (milhas)",   "AZUL_MAX_MILES",          "Ex: 200000")
 
         section("Notificações", "🔔")
         field("Telegram — alvo (Salvas)", "TG_NOTIFY_TARGET", "Ex: me")
@@ -909,7 +1347,7 @@ class MilhasUpApp(ctk.CTk):
         self._act.configure(state="normal")
         self._act.delete("1.0", "end")
 
-        total = smiles = latam = 0
+        total = smiles = latam = azul = 0
         last_time = "—"
 
         for e in events:
@@ -922,6 +1360,7 @@ class MilhasUpApp(ctk.CTk):
                 total += 1
                 if prog == "SMILES":  smiles += 1
                 elif prog == "LATAM": latam  += 1
+                elif prog == "AZUL":  azul   += 1
                 last_time = ts.split()[1] if " " in ts else ts
                 miles  = e.get("miles", 0)
                 cpfs   = e.get("cpfs", 0)
@@ -955,8 +1394,9 @@ class MilhasUpApp(ctk.CTk):
         self._act.see("end")
 
         self._st_total.configure( text=str(total)  if events else "—")
-        self._st_smiles.configure(text=str(smiles) if events else "—")
         self._st_latam.configure( text=str(latam)  if events else "—")
+        self._st_smiles.configure(text=str(smiles) if events else "—")
+        self._st_azul.configure(  text=str(azul)   if events else "—")
         self._st_last.configure(  text=last_time)
 
     # ── Toast ─────────────────────────────────────────────────────────────────
