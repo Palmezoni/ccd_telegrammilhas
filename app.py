@@ -35,7 +35,7 @@ except ImportError:
 
 # ── Constantes ────────────────────────────────────────────────────────────────
 APP_NAME = "Milhas UP Telegram Monitor"
-VERSION  = "1.0.0"
+VERSION  = "1.0.1"
 
 IS_FROZEN = getattr(sys, "frozen", False)
 BASE_DIR  = Path(sys.executable).parent if IS_FROZEN else Path(__file__).parent.resolve()

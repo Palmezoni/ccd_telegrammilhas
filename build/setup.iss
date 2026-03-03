@@ -5,7 +5,7 @@
 ; ============================================================
 
 #define AppName      "Milhas UP Telegram Monitor"
-#define AppVersion   "1.0.0"
+#define AppVersion   "1.0.1"
 #define AppPublisher "Milhas UP"
 #define AppExeName   "MilhasUP.exe"
 #define AppURL       "https://milhasup.com.br"
